@@ -7,6 +7,7 @@ import { DiagnosisManager } from './doctor/DiagnosisManager';
 import { InventoryManager } from './doctor/InventoryManager';
 import { BillingManager } from './doctor/BillingManager';
 import { FormsManager } from './doctor/FormsManager';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 
 interface DoctorDashboardProps {
   user: any;
@@ -118,23 +119,81 @@ export function DoctorDashboard({ user, accessToken, onLogout }: DoctorDashboard
               <div className="vc-sidebar-user-email">{user.email}</div>
             </div>
           </div>
-          <button className="vc-logout-btn" onClick={onLogout}>
-            <LogOut size={16} />
-            <span>Sign Out</span>
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="vc-logout-btn">
+                <LogOut size={16} />
+                <span>Sign Out</span>
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure you want to sign out?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  You will be returned to the login screen.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onLogout}>Sign Out</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="vc-main">
         <div className="vc-main-header">
-          <h1>{getActiveLabel()}</h1>
-          <span className="vc-main-header-badge">Doctor</span>
+          <div className="vc-main-header-left">
+            <div className="vc-mobile-logo">
+              <img src="/logo.jpg" alt="Logo" />
+            </div>
+            <h1>{getActiveLabel()}</h1>
+          </div>
+          <div className="vc-main-header-right">
+            <span className="vc-main-header-badge">Doctor</span>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="vc-mobile-logout">
+                  <LogOut size={18} />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure you want to sign out?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You will be returned to the login screen.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onLogout}>Sign Out</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
         <div className="vc-main-content vc-animate-in" key={activeTab}>
           {renderContent()}
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="vc-bottom-nav">
+        <div className="vc-bottom-nav-container">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              className={`vc-bottom-nav-item ${activeTab === item.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(item.id)}
+            >
+              <item.icon size={20} className="vc-nav-icon" />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }

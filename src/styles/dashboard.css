@@ -423,63 +423,157 @@ body {
     animation: vc-fade-in 0.4s ease-out;
 }
 
-/* ===== RESPONSIVE ===== */
+/* ===== MOBILE BOTTOM NAVIGATION & HEADER ===== */
+.vc-bottom-nav {
+    display: none;
+}
+
+.vc-mobile-logo {
+    display: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+}
+
+.vc-mobile-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.vc-mobile-logout {
+    display: none;
+    background: transparent;
+    border: none;
+    color: #6b7280;
+    padding: 0.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-left: 0.5rem;
+}
+
+.vc-mobile-logout:hover {
+    color: #ef4444;
+    background: #fef2f2;
+}
+
 @media (max-width: 768px) {
     .vc-sidebar {
-        width: 72px;
-        min-width: 72px;
+        display: none !important;
+        /* Hide desktop sidebar */
     }
 
-    .vc-sidebar-brand-name,
-    .vc-sidebar-brand-role,
-    .vc-nav-item span,
-    .vc-sidebar-user-name,
-    .vc-sidebar-user-email,
-    .vc-sidebar-section-label,
-    .vc-logout-btn span {
-        display: none;
-    }
-
-    .vc-sidebar-header {
-        padding: 1rem 0.75rem;
-        display: flex;
-        justify-content: center;
-    }
-
-    .vc-sidebar-brand {
-        justify-content: center;
-    }
-
-    .vc-nav-item {
-        justify-content: center;
-        padding: 0.75rem;
-    }
-
-    .vc-nav-item.active::before {
-        display: none;
-    }
-
-    .vc-sidebar-footer {
-        padding: 0.75rem;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .vc-sidebar-user {
-        justify-content: center;
-    }
-
-    .vc-logout-btn {
-        justify-content: center;
-        padding: 0.5rem;
+    .vc-client-main {
+        padding: 1rem;
+        padding-bottom: 80px;
+        /* Space for bottom nav */
     }
 
     .vc-main-content {
         padding: 1rem;
+        padding-bottom: 80px;
+        /* Space for bottom nav */
     }
 
-    .vc-topbar-user {
+    /* Top Header Adjustments */
+    .vc-main-header {
+        padding: 1rem;
+    }
+
+    .vc-main-header-left {
+        display: flex;
+        align-items: center;
+    }
+
+    .vc-main-header-right {
+        display: flex;
+        align-items: center;
+    }
+
+    .vc-mobile-logo {
+        display: block;
+    }
+
+    .vc-mobile-logout {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .vc-topbar-nav,
+    .vc-tab-nav {
         display: none;
+        /* Hide topbar tab nav on mobile (for Client space) */
+    }
+
+    /* Bottom Navigation */
+    .vc-bottom-nav {
+        display: block;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border-top: 1px solid #e5e7eb;
+        z-index: 50;
+        padding: 0.5rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: none;
+    }
+
+    .vc-bottom-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .vc-bottom-nav-container {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        width: 100%;
+    }
+
+    .vc-bottom-nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+        padding: 0.5rem;
+        color: #9ca3af;
+        text-decoration: none;
+        background: transparent;
+        border: none;
+        border-radius: 12px;
+        flex: 1;
+        min-width: 72px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .vc-bottom-nav-item span {
+        font-size: 0.65rem;
+        font-weight: 500;
+    }
+
+    .vc-bottom-nav-item:hover,
+    .vc-bottom-nav-item:active {
+        color: #059669;
+    }
+
+    .vc-bottom-nav-item.active {
+        color: #059669;
+    }
+
+    .vc-bottom-nav-item.active .vc-nav-icon {
+        background: #ecfdf5;
+        padding: 0.25rem;
+        border-radius: 8px;
+        margin: -0.25rem;
+        color: #059669;
     }
 }

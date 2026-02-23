@@ -169,9 +169,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         }
 
         .hero-logo-wrapper {
-          width: 90px;
-          height: 90px;
-          border-radius: 24px;
+          width: 150px;
+          height: 150px;
+          border-radius: 32px;
           background: rgba(255, 255, 255, 0.15);
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
@@ -344,9 +344,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         }
 
         .mobile-logo-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: 16px;
+          width: 96px;
+          height: 96px;
+          border-radius: 24px;
           background: linear-gradient(135deg, #059669, #10B981);
           display: flex;
           align-items: center;

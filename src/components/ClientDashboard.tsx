@@ -4,6 +4,7 @@ import { MyAppointments } from './client/MyAppointments';
 import { MyPets } from './client/MyPets';
 import { MyBills } from './client/MyBills';
 import { MyProfile } from './client/MyProfile';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 
 interface ClientDashboardProps {
   user: any;
@@ -57,10 +58,26 @@ export function ClientDashboard({ user, accessToken, onLogout }: ClientDashboard
                 <div className="vc-topbar-user-name">{user.name}</div>
                 <div className="vc-topbar-user-email">{user.email}</div>
               </div>
-              <button className="vc-topbar-logout" onClick={onLogout}>
-                <LogOut size={16} />
-                <span>Sign Out</span>
-              </button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button className="vc-topbar-logout">
+                    <LogOut size={16} />
+                    <span>Sign Out</span>
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure you want to sign out?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      You will be returned to the login screen.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={onLogout}>Sign Out</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
 
@@ -84,6 +101,22 @@ export function ClientDashboard({ user, accessToken, onLogout }: ClientDashboard
       <main className="vc-client-main vc-animate-in" key={activeTab}>
         {renderContent()}
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="vc-bottom-nav">
+        <div className="vc-bottom-nav-container">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              className={`vc-bottom-nav-item ${activeTab === item.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(item.id)}
+            >
+              <item.icon size={20} className="vc-nav-icon" />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }
