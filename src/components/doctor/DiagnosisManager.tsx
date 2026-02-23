@@ -208,27 +208,343 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
     const owner = owners.find(o => o.value.id === pet?.value.owner_id || o.key === pet?.value.owner_id);
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+
+    const medsHtml = diagnosis.value.medications?.length > 0 ? `
+      <div class="section">
+        <div class="section-title">💊 Medications Dispensed</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Medicine</th>
+              <th style="text-align: center;">Qty</th>
+              <th style="text-align: right;">Unit Price</th>
+              <th style="text-align: right;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${diagnosis.value.medications.map((med: any) => `
+              <tr>
+                <td>${med.name || 'N/A'}</td>
+                <td style="text-align: center;">${med.quantity || 0}</td>
+                <td style="text-align: right;">₱${(Number(med.price || 0)).toFixed(2)}</td>
+                <td style="text-align: right;">₱${(Number(med.price || 0) * (med.quantity || 0)).toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    ` : '';
+
     printWindow.document.write(`
       <html>
         <head>
           <title>Medical Record - ${pet?.value.name}</title>
           <style>
-            body { font-family: sans-serif; padding: 40px; }
-            .header { text-align: center; border-bottom: 2px solid #10b981; padding-bottom: 20px; }
-            .info { margin: 20px 0; display: grid; grid-template-cols: 1fr 1fr; gap: 10px; }
-            .section { margin: 20px 0; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
-            .label { font-weight: bold; font-size: 12px; color: #666; text-transform: uppercase; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              padding: 30px;
+              color: #1e293b;
+              line-height: 1.6;
+              background: #f8fafc;
+            }
+            .report {
+              max-width: 800px;
+              margin: 0 auto;
+              background: #fff;
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              overflow: hidden;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            }
+            .report-header {
+              background: linear-gradient(135deg, #059669 0%, #047857 100%);
+              color: #fff;
+              padding: 24px 30px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            .report-header h1 {
+              font-size: 26px;
+              font-weight: 800;
+              letter-spacing: 2px;
+              margin-bottom: 4px;
+            }
+            .report-header .doc-type {
+              font-size: 13px;
+              opacity: 0.9;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+            }
+            .report-header .meta {
+              text-align: right;
+              font-size: 12px;
+              opacity: 0.9;
+            }
+            .report-header .meta .record-id {
+              font-family: monospace;
+              font-size: 14px;
+              font-weight: 700;
+              opacity: 1;
+              margin-top: 4px;
+            }
+            .report-body {
+              padding: 30px;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 24px;
+              margin-bottom: 28px;
+            }
+            .info-card {
+              border: 1px solid #e2e8f0;
+              border-radius: 8px;
+              padding: 16px;
+              background: #fafbfc;
+            }
+            .info-card .card-title {
+              font-size: 11px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              color: #059669;
+              margin-bottom: 10px;
+              padding-bottom: 6px;
+              border-bottom: 2px solid #d1fae5;
+            }
+            .info-card .info-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 13px;
+              padding: 3px 0;
+            }
+            .info-card .info-row .label {
+              color: #64748b;
+              font-weight: 500;
+            }
+            .info-card .info-row .value {
+              font-weight: 600;
+              color: #1e293b;
+              text-align: right;
+            }
+            .vitals-bar {
+              display: flex;
+              gap: 16px;
+              margin-bottom: 28px;
+            }
+            .vital-item {
+              flex: 1;
+              background: #f0fdf4;
+              border: 1px solid #bbf7d0;
+              border-radius: 8px;
+              padding: 14px;
+              text-align: center;
+            }
+            .vital-item .vital-label {
+              font-size: 10px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              color: #64748b;
+              margin-bottom: 4px;
+            }
+            .vital-item .vital-value {
+              font-size: 20px;
+              font-weight: 800;
+              color: #059669;
+            }
+            .vital-item .vital-unit {
+              font-size: 11px;
+              color: #64748b;
+              margin-left: 2px;
+            }
+            .section {
+              margin-bottom: 24px;
+            }
+            .section-title {
+              font-size: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              color: #334155;
+              margin-bottom: 8px;
+              padding-bottom: 6px;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            .section-content {
+              font-size: 14px;
+              color: #334155;
+              background: #f8fafc;
+              padding: 14px 16px;
+              border-radius: 6px;
+              border: 1px solid #e2e8f0;
+              white-space: pre-wrap;
+              line-height: 1.7;
+            }
+            .section-content.dx {
+              border-left: 4px solid #059669;
+              background: #f0fdf4;
+            }
+            .section-content.rx {
+              border-left: 4px solid #3b82f6;
+              background: #eff6ff;
+            }
+            .section-content.remarks {
+              border-left: 4px solid #f59e0b;
+              background: #fffbeb;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 13px;
+            }
+            th {
+              background: #f1f5f9;
+              padding: 10px 12px;
+              text-align: left;
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              color: #475569;
+              border-bottom: 2px solid #e2e8f0;
+            }
+            td {
+              padding: 10px 12px;
+              border-bottom: 1px solid #f1f5f9;
+              color: #334155;
+            }
+            .follow-up-bar {
+              background: #fef3c7;
+              border: 1px solid #fbbf24;
+              border-radius: 8px;
+              padding: 12px 16px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 13px;
+              font-weight: 600;
+              color: #92400e;
+              margin-bottom: 24px;
+            }
+            .report-footer {
+              background: #f8fafc;
+              border-top: 1px solid #e2e8f0;
+              padding: 20px 30px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-size: 11px;
+              color: #94a3b8;
+            }
+            .report-footer .clinic-info {
+              font-weight: 600;
+            }
+            .signature-line {
+              border-top: 1px solid #1e293b;
+              width: 200px;
+              text-align: center;
+              padding-top: 6px;
+              font-size: 11px;
+              color: #64748b;
+              margin-top: 40px;
+              margin-left: auto;
+            }
+            @media print {
+              body { background: #fff; padding: 0; }
+              .report { border: none; box-shadow: none; max-width: 100%; }
+            }
           </style>
         </head>
         <body>
-          <div class="header"><h1>PURRFECTCARE</h1><p>Medical Examination Report</p></div>
-          <div class="info">
-            <div><div class="label">Patient</div><b>${pet?.value.name} (${pet?.value.type})</b></div>
-            <div><div class="label">Owner</div><b>${owner?.value.name}</b></div>
-            <div><div class="label">Date</div><b>${formatDate(diagnosis.value.date)}</b></div>
+          <div class="report">
+            <div class="report-header">
+              <div>
+                <h1>PURRFECTCARE</h1>
+                <div class="doc-type">Medical Examination Report</div>
+              </div>
+              <div class="meta">
+                <div>Date of Visit</div>
+                <div class="record-id">${formatDate(diagnosis.value.date)}</div>
+              </div>
+            </div>
+
+            <div class="report-body">
+              <div class="info-grid">
+                <div class="info-card">
+                  <div class="card-title">🐾 Patient Information</div>
+                  <div class="info-row"><span class="label">Name:</span><span class="value">${pet?.value.name || 'N/A'}</span></div>
+                  <div class="info-row"><span class="label">Species:</span><span class="value">${pet?.value.type || 'N/A'}</span></div>
+                  <div class="info-row"><span class="label">Sex:</span><span class="value">${pet?.value.sex ? pet.value.sex.charAt(0).toUpperCase() + pet.value.sex.slice(1) : 'N/A'}</span></div>
+                  <div class="info-row"><span class="label">Color:</span><span class="value">${pet?.value.color || 'N/A'}</span></div>
+                  <div class="info-row"><span class="label">Birthday:</span><span class="value">${pet?.value.birthday ? formatDate(pet.value.birthday) : 'N/A'}</span></div>
+                </div>
+                <div class="info-card">
+                  <div class="card-title">👤 Owner Information</div>
+                  <div class="info-row"><span class="label">Name:</span><span class="value">${owner?.value.name || 'N/A'}</span></div>
+                  <div class="info-row"><span class="label">Contact:</span><span class="value">${owner?.value.contact || 'N/A'}</span></div>
+                  <div class="info-row"><span class="label">Address:</span><span class="value">${owner?.value.address || 'N/A'}</span></div>
+                </div>
+              </div>
+
+              <div class="vitals-bar">
+                <div class="vital-item">
+                  <div class="vital-label">Weight</div>
+                  <div class="vital-value">${diagnosis.value.weight || '—'}<span class="vital-unit">kg</span></div>
+                </div>
+                <div class="vital-item">
+                  <div class="vital-label">Temperature</div>
+                  <div class="vital-value">${diagnosis.value.temperature || '—'}<span class="vital-unit">°C</span></div>
+                </div>
+                <div class="vital-item">
+                  <div class="vital-label">Vaccination</div>
+                  <div class="vital-value" style="font-size: 14px;">${diagnosis.value.vaccination || 'None'}</div>
+                </div>
+              </div>
+
+              ${diagnosis.value.follow_up_date ? `
+              <div class="follow-up-bar">
+                📅 Follow-up Scheduled: <strong>${formatDate(diagnosis.value.follow_up_date)}</strong>
+              </div>
+              ` : ''}
+
+              <div class="section">
+                <div class="section-title">🩺 Diagnosis (DX)</div>
+                <div class="section-content dx">${diagnosis.value.dx || 'No diagnosis recorded.'}</div>
+              </div>
+
+              <div class="section">
+                <div class="section-title">💊 Prescription (RX)</div>
+                <div class="section-content rx">${diagnosis.value.rx || 'No prescription recorded.'}</div>
+              </div>
+
+              ${diagnosis.value.test ? `
+              <div class="section">
+                <div class="section-title">🔬 Laboratory Tests</div>
+                <div class="section-content">${diagnosis.value.test}</div>
+              </div>
+              ` : ''}
+
+              ${medsHtml}
+
+              ${diagnosis.value.remarks ? `
+              <div class="section">
+                <div class="section-title">📝 Clinical Remarks</div>
+                <div class="section-content remarks">${diagnosis.value.remarks}</div>
+              </div>
+              ` : ''}
+
+              <div class="signature-line">
+                Attending Veterinarian
+              </div>
+            </div>
+
+            <div class="report-footer">
+              <div class="clinic-info">PURRFECTCARE Veterinary Clinic</div>
+              <div>Computer-generated medical record. Printed on ${formatDate(new Date())}</div>
+            </div>
           </div>
-          <div class="section"><div class="label">Diagnosis (DX)</div><p>${diagnosis.value.dx}</p></div>
-          <div class="section"><div class="label">Prescription (RX)</div><p>${diagnosis.value.rx}</p></div>
         </body>
       </html>
     `);

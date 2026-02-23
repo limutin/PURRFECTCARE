@@ -71,110 +71,287 @@ export function BillingHistory({ accessToken, petId, showFilters = true }: Billi
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
+        const itemsTotal = bill.value.items?.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0) || 0;
+
         printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>Receipt - ${bill.value.id.substring(0, 8)}</title>
           <style>
-            body { font-family: 'Inter', system-ui, sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
-            .receipt-container { max-width: 800px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #10b981; padding-bottom: 20px; margin-bottom: 30px; }
-            .clinic-brand h1 { margin: 0; color: #059669; font-size: 28px; font-weight: 800; letter-spacing: -0.025em; }
-            .clinic-brand p { margin: 4px 0 0; color: #64748b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; }
-            .receipt-meta { text-align: right; }
-            .receipt-meta p { margin: 2px 0; color: #64748b; font-size: 13px; }
-            .receipt-id { font-family: monospace; font-weight: 700; color: #0f172a; font-size: 16px; margin-top: 4px; }
-            
-            .info-section { display: grid; grid-template-cols: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
-            .info-box h3 { font-size: 12px; text-transform: uppercase; color: #64748b; margin-bottom: 8px; letter-spacing: 0.05em; }
-            .info-box p { margin: 4px 0; font-weight: 500; color: #1e293b; }
-            
-            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-            th { text-align: left; padding: 12px; background: #f8fafc; color: #475569; font-size: 12px; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-            td { padding: 16px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-            .text-right { text-align: right; }
-            
-            .totals { margin-left: auto; width: 300px; }
-            .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
-            .total-row.grand-total { border-top: 2px solid #e2e8f0; margin-top: 8px; padding-top: 16px; font-weight: 800; font-size: 20px; color: #059669; }
-            
-            .footer { margin-top: 60px; padding-top: 30px; border-top: 1px dashed #e2e8f0; text-align: center; }
-            .footer p { margin: 4px 0; color: #64748b; font-size: 13px; }
-            @media print { body { padding: 0; } .receipt-container { border: none; box-shadow: none; width: 100%; max-width: 100%; } }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              padding: 20px;
+              display: flex;
+              justify-content: center;
+              background: #f5f5f5;
+            }
+            .receipt {
+              width: 320px;
+              background: #fff;
+              padding: 20px;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            }
+            .receipt-header {
+              text-align: center;
+              border-bottom: 2px dashed #333;
+              padding-bottom: 15px;
+              margin-bottom: 15px;
+            }
+            .receipt-header h1 {
+              font-size: 22px;
+              font-weight: 900;
+              letter-spacing: 2px;
+              margin-bottom: 4px;
+            }
+            .receipt-header .subtitle {
+              font-size: 11px;
+              color: #555;
+              letter-spacing: 1px;
+              text-transform: uppercase;
+            }
+            .receipt-header .tagline {
+              font-size: 10px;
+              color: #888;
+              margin-top: 6px;
+              font-style: italic;
+            }
+            .receipt-meta {
+              text-align: center;
+              font-size: 11px;
+              color: #555;
+              margin-bottom: 15px;
+              padding-bottom: 12px;
+              border-bottom: 1px dashed #ccc;
+            }
+            .receipt-meta p { margin: 2px 0; }
+            .receipt-meta .receipt-no {
+              font-weight: 700;
+              font-size: 13px;
+              color: #333;
+              margin-top: 4px;
+            }
+            .info-section {
+              margin-bottom: 12px;
+              padding-bottom: 12px;
+              border-bottom: 1px dashed #ccc;
+            }
+            .info-section .section-title {
+              font-size: 11px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              margin-bottom: 6px;
+              color: #333;
+            }
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 11px;
+              margin: 3px 0;
+              color: #444;
+            }
+            .info-row .label {
+              color: #777;
+              min-width: 80px;
+            }
+            .info-row .value {
+              font-weight: 600;
+              text-align: right;
+              flex: 1;
+              color: #222;
+            }
+            .items-header {
+              display: flex;
+              justify-content: space-between;
+              font-size: 10px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              padding: 6px 0;
+              border-bottom: 1px solid #333;
+              border-top: 1px solid #333;
+              margin-bottom: 6px;
+              color: #333;
+            }
+            .items-header span:first-child { flex: 2; }
+            .items-header span:nth-child(2) { flex: 0.5; text-align: center; }
+            .items-header span:nth-child(3) { flex: 1; text-align: right; }
+            .items-header span:last-child { flex: 1; text-align: right; }
+            .item-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 11px;
+              padding: 4px 0;
+              color: #444;
+            }
+            .item-row span:first-child { flex: 2; }
+            .item-row span:nth-child(2) { flex: 0.5; text-align: center; }
+            .item-row span:nth-child(3) { flex: 1; text-align: right; }
+            .item-row span:last-child { flex: 1; text-align: right; font-weight: 600; }
+            .subtotals {
+              border-top: 1px dashed #999;
+              margin-top: 10px;
+              padding-top: 8px;
+            }
+            .subtotal-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 11px;
+              margin: 3px 0;
+              color: #555;
+            }
+            .total-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 16px;
+              font-weight: 900;
+              margin-top: 8px;
+              padding-top: 8px;
+              border-top: 2px solid #333;
+              border-bottom: 2px solid #333;
+              padding-bottom: 8px;
+              color: #111;
+            }
+            .status-badge {
+              text-align: center;
+              margin: 15px 0;
+              padding: 6px;
+              font-size: 12px;
+              font-weight: 700;
+              letter-spacing: 2px;
+              text-transform: uppercase;
+              border: 2px solid;
+            }
+            .status-paid {
+              color: #059669;
+              border-color: #059669;
+              background: #ecfdf5;
+            }
+            .status-unpaid {
+              color: #dc2626;
+              border-color: #dc2626;
+              background: #fef2f2;
+            }
+            .receipt-footer {
+              text-align: center;
+              margin-top: 15px;
+              padding-top: 15px;
+              border-top: 2px dashed #333;
+            }
+            .receipt-footer .thanks {
+              font-size: 12px;
+              font-weight: 700;
+              margin-bottom: 6px;
+            }
+            .receipt-footer .notice {
+              font-size: 9px;
+              color: #888;
+              margin-top: 4px;
+            }
+            .paw-divider {
+              text-align: center;
+              font-size: 10px;
+              color: #ccc;
+              letter-spacing: 4px;
+              margin: 8px 0;
+            }
+            @media print {
+              body { background: #fff; padding: 0; }
+              .receipt { box-shadow: none; width: 100%; max-width: 320px; }
+            }
           </style>
         </head>
         <body>
-          <div class="receipt-container">
-            <div class="header">
-              <div class="clinic-brand">
-                <h1>PURRFECTCARE</h1>
-                <p>Official Receipt</p>
-              </div>
-              <div class="receipt-meta">
-                <p>Date Generated</p>
-                <p class="receipt-id">${formatDate(new Date())}</p>
-                <p style="margin-top: 10px;">Transaction ID</p>
-                <p class="receipt-id">#${bill.value.id.substring(0, 12).toUpperCase()}</p>
-              </div>
+          <div class="receipt">
+            <div class="receipt-header">
+              <h1>PURRFECTCARE</h1>
+              <div class="subtitle">Veterinary Clinic</div>
+              <div class="tagline">Caring for your furry family members</div>
+            </div>
+
+            <div class="receipt-meta">
+              <p><strong>OFFICIAL RECEIPT</strong></p>
+              <p>Date: ${formatDate(bill.value.created_at)}</p>
+              <p class="receipt-no">No. ${bill.value.id.substring(0, 12).toUpperCase()}</p>
             </div>
 
             <div class="info-section">
-              <div class="info-box">
-                <h3>Client & Patient</h3>
-                <p><b>Pet:</b> ${pet?.value.name || 'N/A'}</p>
-                <p><b>Owner:</b> ${owner?.value.name || 'N/A'}</p>
-              </div>
-              <div class="info-box" style="text-align: right;">
-                <h3>Status</h3>
-                <p><b style="color: ${bill.value.status === 'paid' ? '#059669' : '#ef4444'}">${bill.value.status.toUpperCase()}</b></p>
-              </div>
+              <div class="section-title">🐾 Patient Information</div>
+              <div class="info-row"><span class="label">Name:</span><span class="value">${pet?.value.name || 'N/A'}</span></div>
+              <div class="info-row"><span class="label">Species:</span><span class="value">${pet?.value.type || 'N/A'}</span></div>
+              <div class="info-row"><span class="label">Sex:</span><span class="value">${pet?.value.sex ? pet.value.sex.charAt(0).toUpperCase() + pet.value.sex.slice(1) : 'N/A'}</span></div>
+              <div class="info-row"><span class="label">Color:</span><span class="value">${pet?.value.color || 'N/A'}</span></div>
+              <div class="info-row"><span class="label">Birthday:</span><span class="value">${pet?.value.birthday ? formatDate(pet.value.birthday) : 'N/A'}</span></div>
+              <div class="info-row"><span class="label">Weight:</span><span class="value">${pet?.value.weight ? pet.value.weight + ' kg' : 'N/A'}</span></div>
             </div>
 
-            <table>
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th class="text-right">Qty</th>
-                  <th class="text-right">Price</th>
-                  <th class="text-right">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Consultation Fee</td>
-                  <td class="text-right">1</td>
-                  <td class="text-right">₱${bill.value.consultation_fee.toFixed(2)}</td>
-                  <td class="text-right">₱${bill.value.consultation_fee.toFixed(2)}</td>
-                </tr>
-                ${bill.value.items?.map((item: any) => `
-                  <tr>
-                    <td>${item.name}</td>
-                    <td class="text-right">${item.quantity}</td>
-                    <td class="text-right">₱${item.unit_price.toFixed(2)}</td>
-                    <td class="text-right">₱${item.subtotal.toFixed(2)}</td>
-                  </tr>
-                `).join('') || ''}
-              </tbody>
-            </table>
-
-            <div class="totals">
-              <div class="total-row grand-total">
-                <span>TOTAL</span>
-                <span>₱${bill.value.total_cost.toFixed(2)}</span>
-              </div>
+            <div class="info-section">
+              <div class="section-title">👤 Owner Information</div>
+              <div class="info-row"><span class="label">Name:</span><span class="value">${owner?.value.name || 'N/A'}</span></div>
+              <div class="info-row"><span class="label">Contact:</span><span class="value">${owner?.value.contact || 'N/A'}</span></div>
+              <div class="info-row"><span class="label">Address:</span><span class="value">${owner?.value.address || 'N/A'}</span></div>
             </div>
 
-            <div class="footer">
-              <p>Thank you for trusting PURRFECTCARE with your pet's health!</p>
-              <p style="margin-top: 10px; font-size: 11px;">Computer-generated receipt. Valid without signature.</p>
+            <div class="paw-divider">🐾 🐾 🐾 🐾 🐾</div>
+
+            <div class="items-header">
+              <span>Item</span>
+              <span>Qty</span>
+              <span>Price</span>
+              <span>Amount</span>
+            </div>
+
+            <div class="item-row">
+              <span>Consultation Fee</span>
+              <span>1</span>
+              <span>₱${(bill.value.consultation_fee || 0).toFixed(2)}</span>
+              <span>₱${(bill.value.consultation_fee || 0).toFixed(2)}</span>
+            </div>
+            ${bill.value.items?.map((item: any) => `
+              <div class="item-row">
+                <span>${item.name}</span>
+                <span>${item.quantity}</span>
+                <span>₱${(item.unit_price || 0).toFixed(2)}</span>
+                <span>₱${(item.subtotal || 0).toFixed(2)}</span>
+              </div>
+            `).join('') || ''}
+
+            <div class="subtotals">
+              <div class="subtotal-row">
+                <span>Consultation:</span>
+                <span>₱${(bill.value.consultation_fee || 0).toFixed(2)}</span>
+              </div>
+              ${itemsTotal > 0 ? `
+              <div class="subtotal-row">
+                <span>Medicines/Items:</span>
+                <span>₱${itemsTotal.toFixed(2)}</span>
+              </div>
+              ` : ''}
+            </div>
+
+            <div class="total-row">
+              <span>TOTAL</span>
+              <span>₱${(bill.value.total_cost || 0).toFixed(2)}</span>
+            </div>
+
+            <div class="status-badge ${bill.value.status === 'paid' ? 'status-paid' : 'status-unpaid'}">
+              ${bill.value.status === 'paid' ? '✓ PAID' : '✗ UNPAID'}
+            </div>
+
+            <div class="receipt-footer">
+              <div class="thanks">Thank you for choosing PURRFECTCARE!</div>
+              <div class="notice">This is a computer-generated receipt.</div>
+              <div class="notice">No signature required.</div>
+              <div class="paw-divider" style="margin-top: 10px;">🐾 🐾 🐾</div>
             </div>
           </div>
         </body>
       </html>
     `);
         printWindow.document.close();
-        setTimeout(() => printWindow.print(), 500);
+        setTimeout(() => printWindow.print(), 300);
     };
 
     const filteredBills = bills.filter(bill => {
