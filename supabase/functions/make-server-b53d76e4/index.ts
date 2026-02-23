@@ -218,6 +218,89 @@ app.delete("/make-server-b53d76e4/inventory/:id", async (c) => {
 
 // ============== APPOINTMENTS ============== //
 
+app.post("/make-server-b53d76e4/cron/send-reminders", async (c) => {
+  try {
+    const today = new Date();
+    // Adjust for PHT timezone (UTC+8)
+    today.setHours(today.getHours() + 8);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    // Fetch appointments for today and tomorrow
+    const { data: appointments, error } = await supabase
+      .from('appointments')
+      .select('*, pets(name, owners(name, contact))')
+      .in('date', [todayStr, tomorrowStr])
+      .neq('status', 'completed')
+      .neq('status', 'cancelled');
+
+    if (error) throw error;
+    if (!appointments) return c.json({ message: "No appointments found" });
+
+    let sentCount = 0;
+
+    for (const appt of appointments) {
+      if (!appt.pets?.owners?.contact) continue;
+
+      const number = appt.pets.owners.contact;
+      const formatTime12h = (time: string) => {
+        const [h, m] = time.split(':').map(Number);
+        const period = h >= 12 ? 'PM' : 'AM';
+        const hour12 = h % 12 || 12;
+        return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+      };
+      const formattedTime = formatTime12h(appt.time || '00:00:00');
+
+      let message = "";
+      let updateData: any = {};
+
+      if (appt.date === todayStr && !appt.sms_sameday_sent) {
+        message = `Hi ${appt.pets.owners.name}, this is PURRFECTCARE reminding you of ${appt.pets.name}'s scheduled appointment TODAY at ${formattedTime}. See you!`;
+        updateData = { sms_sameday_sent: true };
+      } else if (appt.date === tomorrowStr && !appt.sms_1d_sent) {
+        message = `Hi ${appt.pets.owners.name}, this is PURRFECTCARE. Just a friendly reminder that ${appt.pets.name} has an appointment TOMORROW at ${formattedTime}.`;
+        updateData = { sms_1d_sent: true };
+      }
+
+      if (message) {
+        const params = new URLSearchParams();
+        params.append('apikey', 'bc9ba5a742210fa6a0ee9c8dda9a4009');
+        params.append('number', number);
+        params.append('message', message);
+        params.append('sendername', 'FixUp');
+
+        try {
+          const response = await fetch('https://api.semaphore.co/api/v4/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString()
+          });
+
+          if (response.ok) {
+            await supabase.from('appointments').update(updateData).eq('id', appt.id);
+            sentCount++;
+          } else {
+            const errText = await response.text();
+            console.error("Semaphore SMS Error for", number, ":", errText);
+          }
+        } catch (smsErr) {
+          console.error("Fetch SMS error:", smsErr);
+        }
+      }
+    }
+
+    return c.json({ message: "Reminders processed", sentCount });
+  } catch (e: any) {
+    console.error('CRON SMS Error:', e);
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+
 app.post("/make-server-b53d76e4/appointments", async (c) => {
   const user = await getAuthUser(c);
   const appt = await c.req.json();
@@ -250,6 +333,75 @@ app.delete("/make-server-b53d76e4/appointments/:id", async (c) => {
     if (error) throw error;
     return c.json({ message: "Deleted" });
   } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post("/make-server-b53d76e4/send-sms", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+    const { appointment_id, type } = await c.req.json(); // type: '1d' or 'sameday'
+
+    if (!appointment_id) return c.json({ error: "appointment_id is required" }, 400);
+
+    // fetch appointment details with pet and owner
+    const { data: appt, error } = await supabase
+      .from('appointments')
+      .select('*, pets(name, owners(name, contact))')
+      .eq('id', appointment_id)
+      .single();
+
+    if (error || !appt) throw error || new Error("Appointment not found");
+
+    if (!appt.pets?.owners?.contact) {
+      return c.json({ error: "Owner contact number not found" }, 400);
+    }
+
+    const number = appt.pets.owners.contact;
+
+    // Convert 24h time like "13:09:00" to "1:09 PM"
+    const formatTime12h = (time: string) => {
+      const [h, m] = time.split(':').map(Number);
+      const period = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h % 12 || 12;
+      return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+    };
+    const formattedTime = formatTime12h(appt.time || '00:00:00');
+
+    let message = "";
+    let updateData: any = {};
+
+    if (type === 'sameday') {
+      message = `Hi ${appt.pets.owners.name}, this is PURRFECTCARE reminding you of ${appt.pets.name}'s scheduled appointment TODAY at ${formattedTime}. See you!`;
+      updateData = { sms_sameday_sent: true };
+    } else {
+      message = `Hi ${appt.pets.owners.name}, this is PURRFECTCARE. Just a friendly reminder that ${appt.pets.name} has an appointment TOMORROW at ${formattedTime}.`;
+      updateData = { sms_1d_sent: true };
+    }
+
+    const params = new URLSearchParams();
+    params.append('apikey', 'bc9ba5a742210fa6a0ee9c8dda9a4009');
+    params.append('number', number);
+    params.append('message', message);
+    params.append('sendername', 'FixUp');
+
+    const response = await fetch('https://api.semaphore.co/api/v4/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    });
+
+    if (response.ok) {
+      await supabase.from('appointments').update(updateData).eq('id', appointment_id);
+      return c.json({ message: "SMS sent successfully" });
+    } else {
+      const errText = await response.text();
+      throw new Error(`Semaphore SMS Error: ${errText}`);
+    }
+  } catch (e: any) {
+    console.error('Manual SMS Error:', e);
     return c.json({ error: e.message }, 500);
   }
 });

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Calendar } from '../ui/calendar';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
-import { Plus, Calendar as CalendarIcon, Clock, Edit, Trash2, Bell, Loader2 } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Clock, Edit, Trash2, Bell, Loader2, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AppointmentsManagerProps {
@@ -26,6 +26,7 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [sendingSms, setSendingSms] = useState<string | null>(null);
 
   // Form states
   const [petId, setPetId] = useState('');
@@ -145,6 +146,34 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
     } catch (error) {
       console.error('Error updating appointment:', error);
       toast.error('Failed to update appointment');
+    }
+  };
+
+  const handleSendManualSms = async (appointmentKey: string, type: '1d' | 'sameday') => {
+    setSendingSms(appointmentKey + type);
+    try {
+      const response = await fetch(getFunctionUrl('/send-sms'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'apikey': publicAnonKey
+        },
+        body: JSON.stringify({ appointment_id: appointmentKey, type })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to send SMS');
+      }
+
+      toast.success(`SMS Reminder (${type === '1d' ? '1-Day' : 'Same-Day'}) sent successfully!`);
+      fetchData();
+    } catch (error: any) {
+      console.error('Error sending SMS:', error);
+      toast.error(error.message || 'Failed to send SMS');
+    } finally {
+      setSendingSms(null);
     }
   };
 
@@ -369,7 +398,7 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
               <div className="space-y-3">
                 {upcomingAppointments.slice(0, 5).map(apt => {
                   const pet = pets.find(p => p.value.id === apt.value.pet_id);
-                  const aptDate = new Date(apt.value.date);
+                  const aptDate = new Date(`${apt.value.date}T${apt.value.time || '00:00:00'}`);
                   return (
                     <div key={apt.key} className="text-sm p-2 bg-muted/50 rounded-md">
                       <div className="font-semibold">{pet?.value.name || 'Pet'}</div>
@@ -471,17 +500,56 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
                             Reason: <span className="font-normal">{apt.value.reason}</span>
                           </p>
                         )}
-                        <div className="flex justify-between items-center mt-4">
-                          <div className="flex gap-2">
-
+                        {(apt.value.sms_1d_sent || apt.value.sms_sameday_sent) && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {apt.value.sms_1d_sent && (
+                              <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted font-normal border-none">
+                                <MessageSquare className="w-3 h-3 mr-1" />
+                                1-Day Reminder SMS Sent
+                              </Badge>
+                            )}
+                            {apt.value.sms_sameday_sent && (
+                              <Badge variant="secondary" className="text-[10px] text-muted-foreground bg-muted font-normal border-none">
+                                <MessageSquare className="w-3 h-3 mr-1" />
+                                Same-Day Reminder SMS Sent
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center mt-4 flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-2">
                             {apt.value.status === 'Scheduled' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleUpdateStatus(apt.key, 'completed')}
-                              >
-                                Mark Complete
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleUpdateStatus(apt.key, 'completed')}
+                                >
+                                  Mark Complete
+                                </Button>
+                                {!apt.value.sms_1d_sent && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleSendManualSms(apt.key, '1d')}
+                                    disabled={sendingSms === apt.key + '1d'}
+                                  >
+                                    {sendingSms === apt.key + '1d' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MessageSquare className="w-3 h-3 mr-1" />}
+                                    Send 1D
+                                  </Button>
+                                )}
+                                {!apt.value.sms_sameday_sent && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleSendManualSms(apt.key, 'sameday')}
+                                    disabled={sendingSms === apt.key + 'sameday'}
+                                  >
+                                    {sendingSms === apt.key + 'sameday' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MessageSquare className="w-3 h-3 mr-1" />}
+                                    Send Same-Day
+                                  </Button>
+                                )}
+                              </>
                             )}
                           </div>
                           <div className="flex gap-2">
@@ -519,6 +587,6 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </div >
   );
 }
