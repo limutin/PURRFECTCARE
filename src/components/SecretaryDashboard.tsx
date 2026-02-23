@@ -26,7 +26,10 @@ export function SecretaryDashboard({ user, accessToken, onLogout }: SecretaryDas
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardOverview accessToken={accessToken} />;
+        return <DashboardOverview accessToken={accessToken} onNavigate={(tab) => {
+          if (tab === 'diagnosis') setActiveTab('records');
+          else setActiveTab(tab);
+        }} />;
       case 'clients':
         return <ClientsPetsManager accessToken={accessToken} />;
       case 'appointments':
@@ -36,7 +39,10 @@ export function SecretaryDashboard({ user, accessToken, onLogout }: SecretaryDas
       case 'billing':
         return <BillingViewer accessToken={accessToken} />;
       default:
-        return <DashboardOverview accessToken={accessToken} />;
+        return <DashboardOverview accessToken={accessToken} onNavigate={(tab) => {
+          if (tab === 'diagnosis') setActiveTab('records');
+          else setActiveTab(tab);
+        }} />;
     }
   };
 

@@ -5,9 +5,10 @@ import { Users, Calendar, Package, Banknote, AlertCircle } from 'lucide-react';
 
 interface DashboardOverviewProps {
   accessToken: string;
+  onNavigate?: (tab: string) => void;
 }
 
-export function DashboardOverview({ accessToken }: DashboardOverviewProps) {
+export function DashboardOverview({ accessToken, onNavigate }: DashboardOverviewProps) {
   const [stats, setStats] = useState({
     totalPets: 0,
     todayAppointments: 0,
@@ -152,15 +153,24 @@ export function DashboardOverview({ accessToken }: DashboardOverviewProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 border border-border rounded-lg hover:border-primary transition-colors cursor-pointer">
+            <div
+              className="p-4 border border-border rounded-lg hover:border-primary transition-colors cursor-pointer"
+              onClick={() => onNavigate?.('clients')}
+            >
               <h4 className="font-medium text-foreground mb-1">Register New Pet</h4>
               <p className="text-sm text-muted-foreground">Add a new pet and owner to the system</p>
             </div>
-            <div className="p-4 border border-border rounded-lg hover:border-primary transition-colors cursor-pointer">
+            <div
+              className="p-4 border border-border rounded-lg hover:border-primary transition-colors cursor-pointer"
+              onClick={() => onNavigate?.('appointments')}
+            >
               <h4 className="font-medium text-foreground mb-1">Schedule Appointment</h4>
               <p className="text-sm text-muted-foreground">Book a new appointment for a pet</p>
             </div>
-            <div className="p-4 border border-border rounded-lg hover:border-primary transition-colors cursor-pointer">
+            <div
+              className="p-4 border border-border rounded-lg hover:border-primary transition-colors cursor-pointer"
+              onClick={() => onNavigate?.('diagnosis')}
+            >
               <h4 className="font-medium text-foreground mb-1">Create Diagnosis</h4>
               <p className="text-sm text-muted-foreground">Record medical diagnosis for a patient</p>
             </div>

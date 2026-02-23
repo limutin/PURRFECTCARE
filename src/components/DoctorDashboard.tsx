@@ -30,7 +30,7 @@ export function DoctorDashboard({ user, accessToken, onLogout }: DoctorDashboard
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardOverview accessToken={accessToken} />;
+        return <DashboardOverview accessToken={accessToken} onNavigate={setActiveTab} />;
       case 'clients':
         return <ClientsPetsManager accessToken={accessToken} />;
       case 'appointments':
@@ -44,7 +44,7 @@ export function DoctorDashboard({ user, accessToken, onLogout }: DoctorDashboard
       case 'forms':
         return <FormsManager accessToken={accessToken} />;
       default:
-        return <DashboardOverview accessToken={accessToken} />;
+        return <DashboardOverview accessToken={accessToken} onNavigate={setActiveTab} />;
     }
   };
 
