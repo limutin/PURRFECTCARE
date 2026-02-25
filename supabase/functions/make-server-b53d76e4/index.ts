@@ -271,7 +271,7 @@ app.post("/make-server-b53d76e4/cron/send-reminders", async (c) => {
         params.append('apikey', 'bc9ba5a742210fa6a0ee9c8dda9a4009');
         params.append('number', number);
         params.append('message', message);
-        params.append('sendername', 'FixUp');
+        params.append('sendername', 'PurrfectAC');
 
         try {
           const response = await fetch('https://api.semaphore.co/api/v4/messages', {
@@ -385,7 +385,7 @@ app.post("/make-server-b53d76e4/send-sms", async (c) => {
     params.append('apikey', 'bc9ba5a742210fa6a0ee9c8dda9a4009');
     params.append('number', number);
     params.append('message', message);
-    params.append('sendername', 'FixUp');
+    params.append('sendername', 'PurrfectAC');
 
     const response = await fetch('https://api.semaphore.co/api/v4/messages', {
       method: 'POST',
