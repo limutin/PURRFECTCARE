@@ -218,84 +218,87 @@ app.delete("/make-server-b53d76e4/inventory/:id", async (c) => {
 
 // ============== APPOINTMENTS ============== //
 
-app.post("/make-server-b53d76e4/cron/send-reminders", async (c) => {
-  try {
-    const today = new Date();
-    // Adjust for PHT timezone (UTC+8)
-    today.setHours(today.getHours() + 8);
+// Helper to send SMS via Semaphore
+async function sendSms(name, petName, time, number, type) {
+  const formatTime12h = (t) => {
+    const [h, m] = t.split(':').map(Number);
+    const period = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+  };
+  const formattedTime = formatTime12h(time || '00:00:00');
 
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  let message = "";
+  if (type === 'sameday') {
+    message = `Hi ${name}, this is PurrfectAC reminding you of ${petName}'s scheduled appointment TODAY at ${formattedTime}. See you!`;
+  } else {
+    message = `Hi ${name}, this is PurrfectAC. Just a friendly reminder that ${petName} has an appointment TOMORROW at ${formattedTime}.`;
+  }
 
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const params = new URLSearchParams();
+  params.append('apikey', 'bc9ba5a742210fa6a0ee9c8dda9a4009');
+  params.append('number', number);
+  params.append('message', message);
+  params.append('sendername', 'PurrfectAC');
 
-    // Fetch appointments for today and tomorrow
-    const { data: appointments, error } = await supabase
-      .from('appointments')
-      .select('*, pets(name, owners(name, contact))')
-      .in('date', [todayStr, tomorrowStr])
-      .neq('status', 'completed')
-      .neq('status', 'cancelled');
+  const response = await fetch('https://api.semaphore.co/api/v4/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  });
+  return response.ok;
+}
 
-    if (error) throw error;
-    if (!appointments) return c.json({ message: "No appointments found" });
+// Logic to check if an appointment needs an SMS and send it
+async function checkAndSendReminders(apptIds = []) {
+  const query = supabase.from('appointments').select('*, pets(name, owners(name, contact))')
+    .neq('status', 'completed').neq('status', 'cancelled');
 
-    let sentCount = 0;
+  if (apptIds.length > 0) query.in('id', apptIds);
 
-    for (const appt of appointments) {
-      if (!appt.pets?.owners?.contact) continue;
+  const { data: appointments } = await query;
+  if (!appointments) return 0;
 
-      const number = appt.pets.owners.contact;
-      const formatTime12h = (time: string) => {
-        const [h, m] = time.split(':').map(Number);
-        const period = h >= 12 ? 'PM' : 'AM';
-        const hour12 = h % 12 || 12;
-        return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
-      };
-      const formattedTime = formatTime12h(appt.time || '00:00:00');
+  // Use Intl to get current PHT date
+  const now = new Date();
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(tomorrow);
 
-      let message = "";
-      let updateData: any = {};
+  let sent = 0;
+  for (const appt of appointments) {
+    if (!appt.pets?.owners?.contact) continue;
 
-      if (appt.date === todayStr && !appt.sms_sameday_sent) {
-        message = `Hi ${appt.pets.owners.name}, this is PURRFECTCARE reminding you of ${appt.pets.name}'s scheduled appointment TODAY at ${formattedTime}. See you!`;
-        updateData = { sms_sameday_sent: true };
-      } else if (appt.date === tomorrowStr && !appt.sms_1d_sent) {
-        message = `Hi ${appt.pets.owners.name}, this is PURRFECTCARE. Just a friendly reminder that ${appt.pets.name} has an appointment TOMORROW at ${formattedTime}.`;
-        updateData = { sms_1d_sent: true };
-      }
+    let type = null;
+    let update = {};
 
-      if (message) {
-        const params = new URLSearchParams();
-        params.append('apikey', 'bc9ba5a742210fa6a0ee9c8dda9a4009');
-        params.append('number', number);
-        params.append('message', message);
-        params.append('sendername', 'PurrfectAC');
-
-        try {
-          const response = await fetch('https://api.semaphore.co/api/v4/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params.toString()
-          });
-
-          if (response.ok) {
-            await supabase.from('appointments').update(updateData).eq('id', appt.id);
-            sentCount++;
-          } else {
-            const errText = await response.text();
-            console.error("Semaphore SMS Error for", number, ":", errText);
-          }
-        } catch (smsErr) {
-          console.error("Fetch SMS error:", smsErr);
-        }
-      }
+    if (appt.date === todayStr && !appt.sms_sameday_sent) {
+      type = 'sameday';
+      update = { sms_sameday_sent: true };
+    } else if (appt.date === tomorrowStr && !appt.sms_1d_sent) {
+      type = '1d';
+      update = { sms_1d_sent: true };
     }
 
+    if (type) {
+      const ok = await sendSms(appt.pets.owners.name, appt.pets.name, appt.time, appt.pets.owners.contact, type);
+      if (ok) {
+        await supabase.from('appointments').update(update).eq('id', appt.id);
+        sent++;
+      }
+    }
+  }
+  return sent;
+}
+
+// ============== APPOINTMENTS ============== //
+
+app.post("/make-server-b53d76e4/cron/send-reminders", async (c) => {
+  try {
+    const sentCount = await checkAndSendReminders();
     return c.json({ message: "Reminders processed", sentCount });
-  } catch (e: any) {
-    console.error('CRON SMS Error:', e);
+  } catch (e) {
     return c.json({ error: e.message }, 500);
   }
 });
@@ -304,10 +307,15 @@ app.post("/make-server-b53d76e4/cron/send-reminders", async (c) => {
 app.post("/make-server-b53d76e4/appointments", async (c) => {
   const user = await getAuthUser(c);
   const appt = await c.req.json();
+  const id = `appt:${Date.now()}`;
   const { error } = await supabase.from('appointments').insert({
-    id: `appt:${Date.now()}`, ...appt, created_by: user?.id
+    id, ...appt, created_by: user?.id
   });
   if (error) return c.json({ error: error.message }, 500);
+
+  // Try sending immediate reminder if it's for today/tomorrow
+  checkAndSendReminders([id]).catch(console.error);
+
   return c.json({ message: "Created" });
 });
 
@@ -318,9 +326,14 @@ app.get("/make-server-b53d76e4/appointments", async (c) => {
 
 app.put("/make-server-b53d76e4/appointments/:id", async (c) => {
   try {
+    const id = c.req.param('id');
     const updates = await c.req.json();
-    const { error } = await supabase.from('appointments').update(updates).eq('id', c.req.param('id'));
+    const { error } = await supabase.from('appointments').update(updates).eq('id', id);
     if (error) throw error;
+
+    // Check if update requires a fresh SMS reminder
+    checkAndSendReminders([id]).catch(console.error);
+
     return c.json({ message: "Updated" });
   } catch (e) {
     return c.json({ error: e.message }, 500);
@@ -387,18 +400,12 @@ app.post("/make-server-b53d76e4/send-sms", async (c) => {
     params.append('message', message);
     params.append('sendername', 'PurrfectAC');
 
-    const response = await fetch('https://api.semaphore.co/api/v4/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString()
-    });
-
-    if (response.ok) {
+    const ok = await sendSms(appt.pets.owners.name, appt.pets.name, appt.time, appt.pets.owners.contact, type);
+    if (ok) {
       await supabase.from('appointments').update(updateData).eq('id', appointment_id);
       return c.json({ message: "SMS sent successfully" });
     } else {
-      const errText = await response.text();
-      throw new Error(`Semaphore SMS Error: ${errText}`);
+      throw new Error(`Semaphore SMS Error`);
     }
   } catch (e: any) {
     console.error('Manual SMS Error:', e);
