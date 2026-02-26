@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { Badge } from '../ui/badge';
+import { Skeleton } from '../ui/skeleton';
 import { Eye, Plus, Search, User, PawPrint, Trash2, Loader2, Edit2, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -346,38 +348,61 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPets.map((p) => {
-                const owner = owners.find((o: any) => o.value.id === p.value.owner_id || o.key === p.value.owner_id);
-                return (
-                  <TableRow key={p.key} className="hover:bg-muted/5 transition-colors">
+              {loading ? (
+                [...Array(5)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell>
-                      <div className="flex flex-col py-1">
-                        <span className="font-bold text-primary">{p.value.name}</span>
+                      <div className="space-y-2">
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-3 w-20" />
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <span className="text-sm font-medium">
-                        {p.value.type || 'Unclassified'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col py-1">
-                        <span className="font-semibold">{owner?.value.name || 'Unknown'}</span>
-                        <span className="text-[10px] text-muted-foreground italic border-l-2 border-primary/20 pl-2 mt-1">{owner?.value.contact || 'No contact info'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm opacity-80">{owner?.value.address || 'N/A'}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => startEdit(p)} className="hover:bg-primary/10 hover:text-primary transition-all">
-                        <User className="w-4 h-4 mr-2" />
-                        Patient File
-                      </Button>
-                    </TableCell>
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-9 w-24 ml-auto" /></TableCell>
                   </TableRow>
-                );
-              })}
+                ))
+              ) : filteredPets.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    No records found matching your search.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredPets.map((p) => {
+                  const owner = owners.find((o: any) => o.value.id === p.value.owner_id || o.key === p.value.owner_id);
+                  return (
+                    <TableRow key={p.key} className="hover:bg-muted/5 transition-colors">
+                      <TableCell>
+                        <div className="flex flex-col py-1">
+                          <span className="font-bold text-primary">{p.value.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-medium">
+                          {p.value.type || 'Unclassified'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col py-1">
+                          <span className="font-semibold">{owner?.value.name || 'Unknown'}</span>
+                          <span className="text-[10px] text-muted-foreground italic border-l-2 border-primary/20 pl-2 mt-1">{owner?.value.contact || 'No contact info'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm opacity-80">{owner?.value.address || 'N/A'}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => startEdit(p)} className="hover:bg-primary/10 hover:text-primary transition-all">
+                          <User className="w-4 h-4 mr-2" />
+                          Patient File
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </CardContent>

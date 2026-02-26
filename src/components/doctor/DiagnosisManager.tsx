@@ -28,6 +28,7 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewingDiagnosis, setViewingDiagnosis] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -123,7 +124,7 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
             pet_id: petId,
             date: followUpDate,
             time: "09:00",
-            reason: `Follow-up: ${dx.substring(0, 30)}`,
+            reason: "Follow-up checkup",
             status: 'Scheduled'
           })
         });
@@ -142,19 +143,25 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
 
   const handleDeleteDiagnosis = async (id: string) => {
     if (!confirm('Delete this record?')) return;
+    setDeletingId(id);
     try {
       const res = await fetch(getFunctionUrl(`/diagnoses/${id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'apikey': publicAnonKey
-        },
+        }
       });
-      if (!res.ok) throw new Error();
-      toast.success('Deleted');
-      fetchData();
-    } catch (e) {
-      toast.error('Delete failed');
+      if (res.ok) {
+        toast.success('Record deleted');
+        fetchData();
+      } else {
+        throw new Error();
+      }
+    } catch (e: any) {
+      toast.error('Failed to delete record');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -477,7 +484,6 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
                   <div class="info-row"><span class="label">Name:</span><span class="value">${pet?.value.name || 'N/A'}</span></div>
                   <div class="info-row"><span class="label">Species:</span><span class="value">${pet?.value.type || 'N/A'}</span></div>
                   <div class="info-row"><span class="label">Sex:</span><span class="value">${pet?.value.sex ? pet.value.sex.charAt(0).toUpperCase() + pet.value.sex.slice(1) : 'N/A'}</span></div>
-                  <div class="info-row"><span class="label">Color:</span><span class="value">${pet?.value.color || 'N/A'}</span></div>
                   <div class="info-row"><span class="label">Birthday:</span><span class="value">${pet?.value.birthday ? formatDate(pet.value.birthday) : 'N/A'}</span></div>
                 </div>
                 <div class="info-card">
@@ -806,7 +812,19 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => setViewingDiagnosis(d)} className="h-8 w-8 hover:bg-primary/20 hover:text-primary"><Eye className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handlePrint(d)} className="h-8 w-8 hover:bg-blue-100 hover:text-blue-600"><Printer className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteDiagnosis(d.key)} className="h-8 w-8 hover:bg-red-100 hover:text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteDiagnosis(d.key)}
+                          className="h-8 w-8 hover:bg-red-100 hover:text-red-500"
+                          disabled={deletingId === d.key}
+                        >
+                          {deletingId === d.key ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -870,6 +888,43 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
                       {viewingDiagnosis.value.rx}
                     </div>
                   </div>
+
+                  {viewingDiagnosis.value.test && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                        <Beaker className="w-3.5 h-3.5" /> Lab Tests / Observations
+                      </Label>
+                      <div className="p-4 rounded-xl bg-muted/20 border border-border/50 text-sm leading-relaxed text-foreground font-normal">
+                        {viewingDiagnosis.value.test}
+                      </div>
+                    </div>
+                  )}
+
+                  {viewingDiagnosis.value.medications && viewingDiagnosis.value.medications.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                        <Pill className="w-3.5 h-3.5" /> Dispensed Medications
+                      </Label>
+                      <div className="border rounded-xl overflow-hidden">
+                        <Table>
+                          <TableHeader className="bg-muted/30">
+                            <TableRow className="h-9 hover:bg-transparent">
+                              <TableHead className="h-9 py-0 text-xs font-bold uppercase">Item</TableHead>
+                              <TableHead className="h-9 py-0 text-xs font-bold uppercase text-right">Qty</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {viewingDiagnosis.value.medications.map((m: any, idx: number) => (
+                              <TableRow key={idx} className="h-9">
+                                <TableCell className="py-1 text-sm">{m.name}</TableCell>
+                                <TableCell className="py-1 text-sm text-right font-medium">{m.quantity}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
 
                   {viewingDiagnosis.value.remarks && (
                     <div className="space-y-2">

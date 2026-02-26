@@ -22,6 +22,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterExpiring, setFilterExpiring] = useState(false);
@@ -143,7 +144,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
 
   const handleDeleteItem = async (itemId: string) => {
     if (!confirm('Are you sure you want to delete this item?')) return;
-
+    setDeletingId(itemId);
     try {
       const response = await fetch(
         getFunctionUrl(`/inventory/${itemId}`),
@@ -165,6 +166,8 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
     } catch (error) {
       console.error('Error deleting item:', error);
       toast.error('Failed to delete item');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -340,7 +343,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{inventory.length}</div>
+            {loading ? <Skeleton className="h-9 w-16" /> : <div className="text-3xl font-bold">{inventory.length}</div>}
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-orange-500">
@@ -350,9 +353,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-orange-600">
-              {lowStockItems.length}
-            </div>
+            {loading ? <Skeleton className="h-9 w-16" /> : <div className="text-3xl font-bold text-orange-600">{lowStockItems.length}</div>}
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-red-500">
@@ -362,9 +363,11 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-600">
-              {inventory.filter(item => isExpiringSoon(item.value.expiry_date) || isExpired(item.value.expiry_date)).length}
-            </div>
+            {loading ? <Skeleton className="h-9 w-16" /> : (
+              <div className="text-3xl font-bold text-red-600">
+                {inventory.filter(item => isExpiringSoon(item.value.expiry_date) || isExpired(item.value.expiry_date)).length}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -474,8 +477,13 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
                             size="sm"
                             className="text-destructive hover:bg-destructive/10"
                             onClick={() => handleDeleteItem(item.value.id)}
+                            disabled={deletingId === item.value.id}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {deletingId === item.value.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </Button>
                         </div>
                       </TableCell>

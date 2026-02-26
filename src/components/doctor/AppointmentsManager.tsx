@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Calendar } from '../ui/calendar';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
-import { Plus, Calendar as CalendarIcon, Clock, Edit, Trash2, Bell, Loader2, MessageSquare } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Clock, Edit, Trash2, Bell, Loader2, MessageSquare, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AppointmentsManagerProps {
@@ -26,6 +26,7 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [sendingSms, setSendingSms] = useState<string | null>(null);
 
   // Form states
@@ -177,9 +178,9 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
     }
   };
 
-  const handleDeleteAppointment = async (appointmentKey: string) => {
+  const handleCancelAppointment = async (appointmentKey: string) => {
     if (!confirm('Are you sure you want to cancel this appointment?')) return;
-
+    setCancellingId(appointmentKey);
     try {
       const response = await fetch(
         getFunctionUrl(`/appointments/${appointmentKey}`),
@@ -193,14 +194,16 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
       );
 
       if (!response.ok) {
-        throw new Error('Failed to delete appointment');
+        throw new Error('Failed to cancel appointment');
       }
 
       toast.success('Appointment cancelled successfully!');
       fetchData();
-    } catch (error) {
-      console.error('Error deleting appointment:', error);
-      toast.error('Failed to cancel appointment');
+    } catch (error: any) {
+      console.error('Error cancelling appointment:', error);
+      toast.error(error.message || 'Failed to cancel appointment');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -563,10 +566,16 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-destructive hover:bg-destructive/10"
-                              onClick={() => handleDeleteAppointment(apt.key)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleCancelAppointment(apt.key)}
+                              disabled={cancellingId === apt.key}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              {cancellingId === apt.key ? (
+                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              ) : (
+                                <XCircle className="w-4 h-4 mr-1" />
+                              )}
+                              Cancel
                             </Button>
                           </div>
                         </div>
@@ -587,6 +596,6 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
           </CardContent>
         </Card>
       </div>
-    </div >
+    </div>
   );
 }

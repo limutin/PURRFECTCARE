@@ -372,7 +372,6 @@ export function BillingManager({ accessToken }: BillingManagerProps) {
               <div class="info-row"><span class="label">Name:</span><span class="value">${pet?.value.name || 'N/A'}</span></div>
               <div class="info-row"><span class="label">Species:</span><span class="value">${pet?.value.type || 'N/A'}</span></div>
               <div class="info-row"><span class="label">Sex:</span><span class="value">${pet?.value.sex ? pet.value.sex.charAt(0).toUpperCase() + pet.value.sex.slice(1) : 'N/A'}</span></div>
-              <div class="info-row"><span class="label">Color:</span><span class="value">${pet?.value.color || 'N/A'}</span></div>
               <div class="info-row"><span class="label">Birthday:</span><span class="value">${pet?.value.birthday ? formatDate(pet.value.birthday) : 'N/A'}</span></div>
               <div class="info-row"><span class="label">Weight:</span><span class="value">${pet?.value.weight ? pet.value.weight + ' kg' : 'N/A'}</span></div>
             </div>

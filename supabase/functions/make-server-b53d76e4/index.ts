@@ -162,8 +162,18 @@ app.post("/make-server-b53d76e4/diagnoses", async (c) => {
 });
 
 app.get("/make-server-b53d76e4/diagnoses", async (c) => {
-  const { data } = await supabase.from('diagnoses').select('*, medications:diagnosis_medications(*)');
-  return c.json({ diagnoses: (data || []).map(d => ({ key: d.id, value: d })) });
+  const { data } = await supabase.from('diagnoses').select('*, medications:diagnosis_medications(*, inventory(name))');
+  const formatted = (data || []).map(d => ({
+    key: d.id,
+    value: {
+      ...d,
+      medications: (d.medications || []).map(m => ({
+        ...m,
+        name: m.inventory?.name || 'Unknown Item'
+      }))
+    }
+  }));
+  return c.json({ diagnoses: formatted });
 });
 
 app.delete("/make-server-b53d76e4/diagnoses/:id", async (c) => {
@@ -219,7 +229,7 @@ app.delete("/make-server-b53d76e4/inventory/:id", async (c) => {
 // ============== APPOINTMENTS ============== //
 
 // Helper to send SMS via Semaphore
-async function sendSms(name, petName, time, number, type) {
+async function sendSms(name, petName, time, number, type, reason) {
   const formatTime12h = (t) => {
     const [h, m] = t.split(':').map(Number);
     const period = h >= 12 ? 'PM' : 'AM';
@@ -227,12 +237,13 @@ async function sendSms(name, petName, time, number, type) {
     return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
   };
   const formattedTime = formatTime12h(time || '00:00:00');
+  const reasonText = reason ? ` for ${reason}` : "";
 
   let message = "";
   if (type === 'sameday') {
-    message = `Hi ${name}, this is PurrfectAC reminding you of ${petName}'s scheduled appointment TODAY at ${formattedTime}. See you!`;
+    message = `Hi ${name}, this is PurrfectAC reminding you of ${petName}'s scheduled appointment${reasonText} TODAY at ${formattedTime}. See you!`;
   } else {
-    message = `Hi ${name}, this is PurrfectAC. Just a friendly reminder that ${petName} has an appointment TOMORROW at ${formattedTime}.`;
+    message = `Hi ${name}, this is PurrfectAC. Just a friendly reminder that ${petName} has an appointment${reasonText} TOMORROW at ${formattedTime}.`;
   }
 
   const params = new URLSearchParams();
@@ -282,7 +293,7 @@ async function checkAndSendReminders(apptIds = []) {
     }
 
     if (type) {
-      const ok = await sendSms(appt.pets.owners.name, appt.pets.name, appt.time, appt.pets.owners.contact, type);
+      const ok = await sendSms(appt.pets.owners.name, appt.pets.name, appt.time, appt.pets.owners.contact, type, appt.reason);
       if (ok) {
         await supabase.from('appointments').update(update).eq('id', appt.id);
         sent++;
@@ -374,33 +385,9 @@ app.post("/make-server-b53d76e4/send-sms", async (c) => {
 
     const number = appt.pets.owners.contact;
 
-    // Convert 24h time like "13:09:00" to "1:09 PM"
-    const formatTime12h = (time: string) => {
-      const [h, m] = time.split(':').map(Number);
-      const period = h >= 12 ? 'PM' : 'AM';
-      const hour12 = h % 12 || 12;
-      return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
-    };
-    const formattedTime = formatTime12h(appt.time || '00:00:00');
+    const updateData = type === 'sameday' ? { sms_sameday_sent: true } : { sms_1d_sent: true };
 
-    let message = "";
-    let updateData: any = {};
-
-    if (type === 'sameday') {
-      message = `Hi ${appt.pets.owners.name}, this is PURRFECTCARE reminding you of ${appt.pets.name}'s scheduled appointment TODAY at ${formattedTime}. See you!`;
-      updateData = { sms_sameday_sent: true };
-    } else {
-      message = `Hi ${appt.pets.owners.name}, this is PURRFECTCARE. Just a friendly reminder that ${appt.pets.name} has an appointment TOMORROW at ${formattedTime}.`;
-      updateData = { sms_1d_sent: true };
-    }
-
-    const params = new URLSearchParams();
-    params.append('apikey', 'bc9ba5a742210fa6a0ee9c8dda9a4009');
-    params.append('number', number);
-    params.append('message', message);
-    params.append('sendername', 'PurrfectAC');
-
-    const ok = await sendSms(appt.pets.owners.name, appt.pets.name, appt.time, appt.pets.owners.contact, type);
+    const ok = await sendSms(appt.pets.owners.name, appt.pets.name, appt.time, appt.pets.owners.contact, type, appt.reason);
     if (ok) {
       await supabase.from('appointments').update(updateData).eq('id', appointment_id);
       return c.json({ message: "SMS sent successfully" });
@@ -419,16 +406,37 @@ app.post("/make-server-b53d76e4/billing", async (c) => {
   try {
     const body = await c.req.json();
     const id = `bill:${Date.now()}`;
-    const total = parseFloat(body.consultation_fee) + (body.items?.reduce((acc, i) => acc + (i.subtotal || 0), 0) || 0);
+
+    let itemsTotal = 0;
+    const billItems = [];
+
+    if (body.items?.length) {
+      const { data: inventory } = await supabase.from('inventory').select('id, name, price');
+      for (const item of body.items) {
+        const inv = inventory?.find(i => i.id === item.inventory_id);
+        const price = inv ? parseFloat(inv.price || 0) : 0;
+        const subtotal = price * (item.quantity || 0);
+        itemsTotal += subtotal;
+        billItems.push({
+          bill_id: id,
+          inventory_id: item.inventory_id,
+          name: inv?.name || 'Unknown',
+          quantity: item.quantity,
+          unit_price: price,
+          subtotal: subtotal
+        });
+      }
+    }
+
+    const total = parseFloat(body.consultation_fee || 0) + itemsTotal;
 
     const { error: bErr } = await supabase.from('billing').insert({
       id, pet_id: body.pet_id, diagnosis_id: body.diagnosis_id, consultation_fee: body.consultation_fee, total_cost: total, status: 'unpaid'
     });
     if (bErr) throw bErr;
 
-    if (body.items?.length) {
-      const items = body.items.map(i => ({ bill_id: id, inventory_id: i.inventory_id, name: i.name, quantity: i.quantity, unit_price: i.unit_price, subtotal: i.subtotal }));
-      await supabase.from('billing_items').insert(items);
+    if (billItems.length > 0) {
+      await supabase.from('billing_items').insert(billItems);
     }
 
     return c.json({ message: "Billed", id });
