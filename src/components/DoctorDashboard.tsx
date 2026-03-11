@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Heart, LayoutDashboard, Users, Calendar, FileText, Package, Banknote, FilePlus, LogOut, User } from 'lucide-react';
 import { DashboardOverview } from './doctor/DashboardOverview';
-import { ClientsPetsManager } from './doctor/ClientsPetsManager';
+import { OwnersPetsManager } from './doctor/OwnersPetsManager';
 import { AppointmentsManager } from './doctor/AppointmentsManager';
 import { DiagnosisManager } from './doctor/DiagnosisManager';
 import { InventoryManager } from './doctor/InventoryManager';
@@ -20,7 +20,7 @@ export function DoctorDashboard({ user, accessToken, onLogout }: DoctorDashboard
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'clients', label: 'Clients & Pets', icon: Users },
+    { id: 'clients', label: 'Owners & Pets', icon: Users },
     { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'diagnosis', label: 'Diagnosis', icon: FileText },
     { id: 'inventory', label: 'Inventory', icon: Package },
@@ -33,7 +33,7 @@ export function DoctorDashboard({ user, accessToken, onLogout }: DoctorDashboard
       case 'dashboard':
         return <DashboardOverview accessToken={accessToken} onNavigate={setActiveTab} />;
       case 'clients':
-        return <ClientsPetsManager accessToken={accessToken} />;
+        return <OwnersPetsManager accessToken={accessToken} />;
       case 'appointments':
         return <AppointmentsManager accessToken={accessToken} />;
       case 'diagnosis':

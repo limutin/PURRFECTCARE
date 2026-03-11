@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { Heart, Calendar, PawPrint, Banknote, User, LogOut } from 'lucide-react';
-import { MyAppointments } from './client/MyAppointments';
-import { MyPets } from './client/MyPets';
-import { MyBills } from './client/MyBills';
-import { MyProfile } from './client/MyProfile';
+import { MyAppointments } from './owner/MyAppointments';
+import { MyPets } from './owner/MyPets';
+import { MyBills } from './owner/MyBills';
+import { MyProfile } from './owner/MyProfile';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 
-interface ClientDashboardProps {
+interface OwnerDashboardProps {
   user: any;
   accessToken: string;
   onLogout: () => void;
 }
 
-export function ClientDashboard({ user, accessToken, onLogout }: ClientDashboardProps) {
+export function OwnerDashboard({ user, accessToken, onLogout }: OwnerDashboardProps) {
   const [activeTab, setActiveTab] = useState('appointments');
 
   const menuItems = [
@@ -49,7 +49,7 @@ export function ClientDashboard({ user, accessToken, onLogout }: ClientDashboard
               </div>
               <div>
                 <div className="vc-topbar-title">PURRFECTCARE</div>
-                <div className="vc-topbar-subtitle">Client Portal</div>
+                <div className="vc-topbar-subtitle">Owner Portal</div>
               </div>
             </div>
 

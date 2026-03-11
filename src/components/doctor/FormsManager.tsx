@@ -1,13 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { projectId } from '../../utils/supabase/info';
+import PizZip from 'pizzip';
+import Docxtemplater from 'docxtemplater';
+import { projectId, publicAnonKey, getFunctionUrl } from '../../utils/supabase/info';
 import { formatDate } from '../../utils/formatDate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
-import { FileText, FilePlus, Search, User, PawPrint, Dna, MapPin, Phone, Calendar as CalendarIcon, Info } from 'lucide-react';
+import { Skeleton } from '../ui/skeleton';
+import {
+  FileText, FilePlus, Search, User, PawPrint, Dna,
+  MapPin, Phone, Calendar as CalendarIcon, Info, Loader2,
+  Map, Fingerprint, Activity, Clock
+} from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from '../ui/dialog';
 
 interface FormsManagerProps {
   accessToken: string;
@@ -190,177 +207,491 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
     </style>
   `;
 
+  // VHC specific states
+  const [vhcControlNo, setVhcControlNo] = useState('');
+  const [vhcDestination, setVhcDestination] = useState('');
+  const [vhcVaccineUsed, setVhcVaccineUsed] = useState('Rabies Vaccine');
+  const [vhcVaccineDate, setVhcVaccineDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showVhcDialog, setShowVhcDialog] = useState(false);
+
+  // Confinement specific states
+  const [confinementFirstDayCost, setConfinementFirstDayCost] = useState('2,000');
+  const [confinementSucceedingDayCost, setConfinementSucceedingDayCost] = useState('500');
+  const [showConfinementDialog, setShowConfinementDialog] = useState(false);
+
+  // Surgery specific states
+  const [surgeryName, setSurgeryName] = useState('');
+  const [surgeryProcedure, setSurgeryProcedure] = useState('');
+  const [surgeryCost, setSurgeryCost] = useState('');
+  const [surgeryDeposit, setSurgeryDeposit] = useState('');
+  const [surgeryMedication, setSurgeryMedication] = useState('');
+  const [surgeryBalance, setSurgeryBalance] = useState('');
+  const [surgeryLabTests, setSurgeryLabTests] = useState('');
+  const [surgeryTotal, setSurgeryTotal] = useState('');
+  const [showSurgeryDialog, setShowSurgeryDialog] = useState(false);
+
+  useEffect(() => {
+    const parseValue = (val: string) => {
+      if (!val) return 0;
+      // Remove commas and parse
+      return parseFloat(val.replace(/,/g, '')) || 0;
+    };
+
+    const total = 
+      parseValue(surgeryProcedure) + 
+      parseValue(surgeryCost) + 
+      parseValue(surgeryDeposit) +
+      parseValue(surgeryMedication) + 
+      parseValue(surgeryLabTests) + 
+      parseValue(surgeryBalance);
+      
+    if (total > 0) {
+      setSurgeryTotal(total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }));
+    } else {
+      setSurgeryTotal('');
+    }
+  }, [surgeryProcedure, surgeryCost, surgeryDeposit, surgeryMedication, surgeryLabTests, surgeryBalance]);
+
   const generateVHC = () => {
     if (!selectedPet) return;
     const pet = pets.find(p => p.value.id === selectedPet);
     const owner = owners.find(o => o.value.id === pet?.value.owner_id);
 
+    // Calculate age
+    let ageText = 'N/A';
+    if (pet.value.birthday) {
+      const birthDate = new Date(pet.value.birthday);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+      ageText = age <= 0 ? (m <= 0 ? 'Less than 1 month' : `${m} months`) : `${age} years old`;
+    }
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>VHC - ${pet.value.name}</title>
-          ${getFormStyle()}
-        </head>
-        <body>
-          <div class="watermark">PURRFECTCARE</div>
-          <div class="header">
-            <div class="logo-area">
-              <div class="logo-circle">V</div>
-              <div>
-                <p style="font-size: 14px; color: #666; margin:0">Standard of Excellence</p>
-                <p style="font-size: 14px; color: #666; margin:0">Since 2024</p>
-              </div>
-            </div>
-            <div class="clinic-info">
-              <h1 class="clinic-name">PURRFECTCARE</h1>
-              <p style="margin: 4px 0">123 Veterinary Lane, Pet City</p>
-              <p style="margin: 4px 0">Tel: (02) 8-888-8888</p>
-            </div>
-          </div>
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-          <div class="form-title">Veterinary Health Certificate</div>
+    console.log("Starting VHC generation for:", pet.value.name);
 
-          <p>Date of Issue: <b>${formatDate(new Date())}</b></p>
-          
-          <div class="section-title">Owner Information</div>
-          <div class="data-grid">
-            <div class="data-item">
-              <div class="data-label">Full Name</div>
-              <div class="data-value">${owner?.value.name || 'N/A'}</div>
-            </div>
-            <div class="data-item">
-              <div class="data-label">Home Address</div>
-              <div class="data-value">${owner?.value.address || 'N/A'}</div>
-            </div>
-            <div class="data-item">
-              <div class="data-label">Contact Number</div>
-              <div class="data-value">${owner?.value.contact || 'N/A'}</div>
-            </div>
-          </div>
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + "?t=" + new Date().getTime()) // Cache buster
+        .then(response => {
+          if (!response.ok) throw new Error("Fetch failed: " + response.statusText);
+          return response.arrayBuffer();
+        })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
 
-          <div class="section-title">Animal Identification</div>
-          <div class="data-grid">
-            <div class="data-item">
-              <div class="data-label">Pet Name</div>
-              <div class="data-value">${pet.value.name}</div>
-            </div>
-            <div class="data-item">
-              <div class="data-label">Sex</div>
-              <div class="data-value">${pet.value.sex.toUpperCase()}</div>
-            </div>
-            <div class="data-item">
-              <div class="data-label">Date of Birth</div>
-              <div class="data-value">${formatDate(pet.value.birthday)}</div>
-            </div>
-          </div>
+    loadFile("/VHC_Template.docx", (error, content) => {
+      if (error) {
+        console.error(error);
+        toast.error("Failed to load template file");
+        return;
+      }
 
-          <div class="main-content">
-            <p>
-              This is to officially certify that the animal described above has been examined by the undersigned licensed veterinarian. 
-              On clinical examination, the animal appeared healthy and free from any signs of infectious or contagious diseases.
-            </p>
-            <p>
-              The animal is considered <b>FIT FOR TRAVEL / TRANSPORT</b> at the time of examination.
-            </p>
-          </div>
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+        });
 
-          <div class="footer">
-            <div class="signature-block">
-              <div class="signature-line">Pet Owner</div>
-            </div>
-            <div class="signature-block">
-              <div class="signature-line">Licensed Veterinarian</div>
-              <div style="font-size: 12px; margin-top: 5px;">License No: 123456-VET</div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+        const renderData = {
+          owner_name: owner?.value.name || '',
+          owner_address: owner?.value.address || '',
+          owner_contact: owner?.value.contact || '',
+          owner_email: owner?.value.email || '',
+          destination: vhcDestination || '',
+          pet_name: pet.value.name,
+          species: pet.value.type,
+          species_lower: pet.value.type.toLowerCase(),
+          breed: pet.value.breed || '',
+          color: pet.value.color || '',
+          sex: pet.value.sex.toUpperCase(),
+          age: ageText,
+          weight: pet.value.weight ? pet.value.weight + ' kg' : '',
+          vaccine_date: formatDate(vhcVaccineDate),
+          current_date: formatDate(new Date()),
+          time: timeStr,
+          vaccine_used: vhcVaccineUsed,
+          control_no: vhcControlNo || ''
+        };
+
+        console.log("Rendering VHC with data:", renderData);
+        doc.render(renderData);
+
+        const out = doc.getZip().generate({
+          type: "blob",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `VHC_${pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success("VHC Document generated successfully!");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Error generating document: " + err.message);
+      }
+    });
   };
 
-  const generateLabRequest = (type: 'CBC' | 'CHEM') => {
+  const generateEuthanasia = () => {
     if (!selectedPet) return;
     const pet = pets.find(p => p.value.id === selectedPet);
     const owner = owners.find(o => o.value.id === pet?.value.owner_id);
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!pet) return;
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${type} Request - ${pet.value.name}</title>
-          ${getFormStyle()}
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo-area">
-              <div class="logo-circle">V</div>
-            </div>
-            <div class="clinic-info">
-              <h1 class="clinic-name">PURRFECTCARE</h1>
-              <p style="margin: 4px 0">Laboratory Services</p>
-            </div>
-          </div>
+    toast.info("Preparing euthanasia consent form...");
 
-          <div class="form-title">Laboratory Request - ${type === 'CBC' ? 'Complete Blood Count' : 'Blood Chemistry'}</div>
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + "?t=" + new Date().getTime())
+        .then(response => {
+          if (!response.ok) throw new Error("Fetch failed: " + response.statusText);
+          return response.arrayBuffer();
+        })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
 
-          <div class="data-grid">
-            <div class="data-item">
-              <div class="data-label">Date Requested</div>
-              <div class="data-value">${formatDate(new Date())}</div>
-            </div>
-            <div class="data-item">
-              <div class="data-label">Pet Name</div>
-              <div class="data-value">${pet.value.name}</div>
-            </div>
-            <div class="data-item">
-              <div class="data-label">Owner Name</div>
-              <div class="data-value">${owner?.value.name || 'N/A'}</div>
-            </div>
-          </div>
+    loadFile("/Euthanasia_Template.docx", (error, content) => {
+      if (error) {
+        console.error(error);
+        toast.error("Failed to load template file");
+        return;
+      }
 
-          <div class="section-title">Requested parameters</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Parameter</th>
-                <th>Result</th>
-                <th>Reference Range</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${type === 'CBC' ? `
-                <tr><td>WBC (White Blood Cells)</td><td></td><td>6.0-17.0 x10³/μL</td></tr>
-                <tr><td>RBC (Red Blood Cells)</td><td></td><td>5.5-8.5 x10⁶/μL</td></tr>
-                <tr><td>Hemoglobin</td><td></td><td>12.0-18.0 g/dL</td></tr>
-                <tr><td>Hematocrit</td><td></td><td>37-55%</td></tr>
-                <tr><td>Platelets</td><td></td><td>200-500 x10³/μL</td></tr>
-              ` : `
-                <tr><td>Glucose</td><td></td><td>70-110 mg/dL</td></tr>
-                <tr><td>BUN</td><td></td><td>7-27 mg/dL</td></tr>
-                <tr><td>Creatinine</td><td></td><td>0.5-1.5 mg/dL</td></tr>
-                <tr><td>ALT (SGPT)</td><td></td><td>10-100 U/L</td></tr>
-                <tr><td>AST (SGOT)</td><td></td><td>10-50 U/L</td></tr>
-              `}
-            </tbody>
-          </table>
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+        });
 
-          <div class="footer">
-            <div class="signature-block">
-              <div class="signature-line">Requesting Veterinarian</div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+        const renderData = {
+          owner_name: owner?.value.name || '',
+          owner_address: owner?.value.address || '',
+          pet_name: pet.value.name,
+          species: pet.value.type,
+          breed: pet.value.breed || '',
+          color: pet.value.color || '',
+          sex: pet.value.sex,
+          current_date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        };
+
+        doc.render(renderData);
+
+        const out = doc.getZip().generate({
+          type: "blob",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Euthanasia_Consent_${pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success("Euthanasia Consent form generated successfully!");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Error generating document: " + err.message);
+      }
+    });
+  };
+
+  const generateWaiver = () => {
+    if (!selectedPet) return;
+    const pet = pets.find(p => p.value.id === selectedPet);
+    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+
+    if (!pet) return;
+
+    toast.info("Preparing Waiver of Release form...");
+
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + "?t=" + new Date().getTime())
+        .then(response => {
+          if (!response.ok) throw new Error("Fetch failed: " + response.statusText);
+          return response.arrayBuffer();
+        })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
+
+    loadFile("/Waiver_Template.docx", (error, content) => {
+      if (error) {
+        console.error(error);
+        toast.error("Failed to load template file");
+        return;
+      }
+
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+        });
+
+        const renderData = {
+          owner_name: owner?.value.name || '',
+          pet_name: pet.value.name,
+          current_date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        };
+
+        doc.render(renderData);
+
+        const out = doc.getZip().generate({
+          type: "blob",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Waiver_of_Release_${pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success("Waiver of Release form generated successfully!");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Error generating document: " + err.message);
+      }
+    });
+  };
+
+  const generateGrooming = () => {
+    if (!selectedPet) return;
+    const pet = pets.find(p => p.value.id === selectedPet);
+    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+
+    if (!pet) return;
+
+    toast.info("Preparing Grooming Treatment Agreement...");
+
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + "?t=" + new Date().getTime())
+        .then(response => {
+          if (!response.ok) throw new Error("Fetch failed: " + response.statusText);
+          return response.arrayBuffer();
+        })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
+
+    loadFile("/Grooming_Template.docx", (error, content) => {
+      if (error) {
+        console.error(error);
+        toast.error("Failed to load template file");
+        return;
+      }
+
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+        });
+
+        // Split current date
+        const now = new Date();
+        const suffixes = ["th", "st", "nd", "rd"];
+        const d = now.getDate();
+        const dayWithSuffix = d + (suffixes[(d - 20) % 10] || suffixes[d] || suffixes[0]);
+
+        const renderData = {
+          owner_name: owner?.value.name || '',
+          owner_address: owner?.value.address || '',
+          owner_contact: owner?.value.contact || '',
+          pet_name: pet.value.name,
+          day: dayWithSuffix.toUpperCase(),
+          month: now.toLocaleDateString('en-US', { month: 'long' }).toUpperCase(),
+          year_2dig: now.getFullYear().toString().slice(-2)
+        };
+
+        doc.render(renderData);
+
+        const out = doc.getZip().generate({
+          type: "blob",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Grooming_Agreement_${pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success("Grooming Agreement generated successfully!");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Error generating document: " + err.message);
+      }
+    });
+  };
+
+  const generateConfinement = () => {
+    if (!selectedPet) return;
+    const pet = pets.find(p => p.value.id === selectedPet);
+    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+
+    if (!pet) return;
+
+    toast.info("Preparing Consent for Confinement...");
+
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + "?t=" + new Date().getTime())
+        .then(response => {
+          if (!response.ok) throw new Error("Fetch failed: " + response.statusText);
+          return response.arrayBuffer();
+        })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
+
+    loadFile("/Confinement_Template.docx", (error, content) => {
+      if (error) {
+        console.error(error);
+        toast.error("Failed to load template file");
+        return;
+      }
+
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+        });
+
+        const renderData = {
+          owner_name: owner?.value.name || '',
+          owner_address: owner?.value.address || '',
+          pet_name: pet.value.name,
+          species: pet.value.type,
+          breed: pet.value.breed || '',
+          color: pet.value.color || '',
+          sex: pet.value.sex,
+          first_day_cost: confinementFirstDayCost,
+          succeeding_day_cost: confinementSucceedingDayCost
+        };
+
+        doc.render(renderData);
+
+        const out = doc.getZip().generate({
+          type: "blob",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Confinement_Consent_${pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success("Confinement Consent form generated successfully!");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Error generating document: " + err.message);
+      }
+    });
+  };
+
+  const generateSurgery = () => {
+    if (!selectedPet) return;
+    const pet = pets.find(p => p.value.id === selectedPet);
+    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+
+    if (!pet) return;
+
+    toast.info("Preparing Consent for Surgery...");
+
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + "?t=" + new Date().getTime())
+        .then(response => {
+          if (!response.ok) throw new Error("Fetch failed: " + response.statusText);
+          return response.arrayBuffer();
+        })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
+
+    loadFile("/Surgery_Template.docx", (error, content) => {
+      if (error) {
+        console.error(error);
+        toast.error("Failed to load template file");
+        return;
+      }
+
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+        });
+
+        const renderData = {
+          owner_name: owner?.value.name || '',
+          owner_address: owner?.value.address || '',
+          pet_name: pet.value.name,
+          species: pet.value.type,
+          breed: pet.value.breed || '',
+          color: pet.value.color || '',
+          sex: pet.value.sex,
+          procedure_name: surgeryName,
+          procedure_cost: surgeryProcedure,
+          cost: surgeryCost,
+          deposit: surgeryDeposit,
+          medication: surgeryMedication,
+          balance: surgeryBalance,
+          lab_tests: surgeryLabTests,
+          total: surgeryTotal
+        };
+
+        doc.render(renderData);
+
+        const out = doc.getZip().generate({
+          type: "blob",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `Surgery_Consent_${pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success("Surgery Consent form generated successfully!");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Error generating document: " + err.message);
+      }
+    });
   };
 
   return (
@@ -506,27 +837,112 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <Dialog open={showVhcDialog} onOpenChange={setShowVhcDialog}>
+          <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary">
+            <div className={`absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-green-50 text-green-700`}></div>
+            <CardHeader className="pb-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-green-50 text-green-700 border-green-200`}>
+                <FileText className="w-6 h-6" />
+              </div>
+              <CardTitle className="text-xl font-bold">Health Certificate</CardTitle>
+              <CardDescription className="leading-relaxed min-h-[60px]">Official Veterinary Health Certificate (VHC) for travel, transport, or general health clearance.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DialogTrigger asChild>
+                <Button
+                  disabled={!selectedPet}
+                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <FilePlus className="w-4 h-4 mr-2" />
+                  Generate VHC
+                </Button>
+              </DialogTrigger>
+            </CardContent>
+          </Card>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-primary" />
+                VHC Additional Information
+              </DialogTitle>
+              <DialogDescription>
+                Please provide the missing details required for the Health Certificate.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                    <Fingerprint className="w-3 h-3" /> Control No.
+                  </Label>
+                  <Input
+                    placeholder="e.g. 2024-001"
+                    value={vhcControlNo}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVhcControlNo(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                    <Map className="w-3 h-3" /> Destination
+                  </Label>
+                  <Input
+                    placeholder="e.g. Cebu City"
+                    value={vhcDestination}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVhcDestination(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                  <Activity className="w-3 h-3" /> Rabies Vaccine Used
+                </Label>
+                <Input
+                  placeholder="e.g. Nobivac Rabies"
+                  value={vhcVaccineUsed}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVhcVaccineUsed(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                  <Clock className="w-3 h-3" /> Vaccination Date
+                </Label>
+                <Input
+                  type="date"
+                  value={vhcVaccineDate}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVhcVaccineDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowVhcDialog(false)}>Cancel</Button>
+              <Button onClick={() => { generateVHC(); setShowVhcDialog(false); }}>
+                Generate PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {[
           {
-            id: 'vhc',
-            title: 'Health Certificate',
-            desc: 'Official Veterinary Health Certificate (VHC) for travel, transport, or general health clearance.',
-            action: generateVHC,
-            color: 'bg-green-50 text-green-700 border-green-200'
+            id: 'euthanasia',
+            title: 'Consent for Euthanasia',
+            desc: 'Official consent form for requested euthanasia procedures, documenting veterinarian discussion and rabies status.',
+            action: generateEuthanasia,
+            color: 'bg-red-50 text-red-700 border-red-200'
           },
           {
-            id: 'cbc',
-            title: 'Lab Request: CBC',
-            desc: 'Complete Blood Count request form with standard reference ranges for canine/feline patients.',
-            action: () => generateLabRequest('CBC'),
-            color: 'bg-blue-50 text-blue-700 border-blue-200'
+            id: 'waiver',
+            title: 'Waiver of Release',
+            desc: 'Waiver for patients leaving the clinic prematurely against veterinary advice.',
+            action: generateWaiver,
+            color: 'bg-orange-50 text-orange-700 border-orange-200'
           },
           {
-            id: 'blood-chem',
-            title: 'Lab Request: CHEM',
-            desc: 'Blood Chemistry analysis request covering standard panels like Glucose, BUN, and Creatinine.',
-            action: () => generateLabRequest('CHEM'),
-            color: 'bg-purple-50 text-purple-700 border-purple-200'
+            id: 'grooming',
+            title: 'Grooming Agreement',
+            desc: 'Terms and conditions for grooming and skin treatments, ensuring client acknowledgement of risks.',
+            action: generateGrooming,
+            color: 'bg-teal-50 text-teal-700 border-teal-200'
           }
         ].map((form) => (
           <Card key={form.id} className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary">
@@ -550,6 +966,173 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             </CardContent>
           </Card>
         ))}
+
+        <Dialog open={showConfinementDialog} onOpenChange={setShowConfinementDialog}>
+          <DialogTrigger asChild>
+            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-indigo-100">
+              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-indigo-200"></div>
+              <CardHeader className="pb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-indigo-50 text-indigo-700 border-indigo-200">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <CardTitle className="text-xl font-bold">Consent for Confinement</CardTitle>
+                <CardDescription className="leading-relaxed min-h-[60px]">Official consent for pet confinement, documenting treatment estimates and owner responsibilities.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  disabled={!selectedPet}
+                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <FilePlus className="w-4 h-4 mr-2" />
+                  Generate CONFINEMENT
+                </Button>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-primary" />
+                Confinement Estimates
+              </DialogTitle>
+              <DialogDescription>
+                Provide the estimated treatment costs for the confinement form.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">First Day Cost (Php)</Label>
+                <Input 
+                  placeholder="e.g. 2,000" 
+                  value={confinementFirstDayCost}
+                  onChange={(e) => setConfinementFirstDayCost(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Succeeding Days Cost (Php)</Label>
+                <Input 
+                  placeholder="e.g. 500" 
+                  value={confinementSucceedingDayCost}
+                  onChange={(e) => setConfinementSucceedingDayCost(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowConfinementDialog(false)}>Cancel</Button>
+              <Button onClick={() => { generateConfinement(); setShowConfinementDialog(false); }}>
+                Generate PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showSurgeryDialog} onOpenChange={setShowSurgeryDialog}>
+          <DialogTrigger asChild>
+            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-blue-100">
+              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-blue-200"></div>
+              <CardHeader className="pb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-blue-50 text-blue-700 border-blue-200">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <CardTitle className="text-xl font-bold">Consent for Surgery</CardTitle>
+                <CardDescription className="leading-relaxed min-h-[60px]">Official consent for surgical procedures, documenting risks, costs, and owner authorization.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  disabled={!selectedPet}
+                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <FilePlus className="w-4 h-4 mr-2" />
+                  Generate SURGERY
+                </Button>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                Surgical Procedure Details
+              </DialogTitle>
+              <DialogDescription>
+                Provide the procedure details and cost estimates for the surgery consent form.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="col-span-2 space-y-2">
+                <Label className="text-xs font-bold uppercase text-primary">Surgery to Perform</Label>
+                <Input 
+                  placeholder="e.g. Spay / Neuter / Tumor Removal" 
+                  value={surgeryName}
+                  onChange={(e) => setSurgeryName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Surgical Procedure Cost (Php)</Label>
+                <Input 
+                  placeholder="e.g. 1,500" 
+                  value={surgeryProcedure}
+                  onChange={(e) => setSurgeryProcedure(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Estimated Cost (Php)</Label>
+                <Input 
+                  placeholder="e.g. 5,000" 
+                  value={surgeryCost}
+                  onChange={(e) => setSurgeryCost(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Deposit (Php)</Label>
+                <Input 
+                  placeholder="e.g. 1,000" 
+                  value={surgeryDeposit}
+                  onChange={(e) => setSurgeryDeposit(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Medication (Php)</Label>
+                <Input 
+                  placeholder="e.g. 1,200" 
+                  value={surgeryMedication}
+                  onChange={(e) => setSurgeryMedication(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Balance (Php)</Label>
+                <Input 
+                  placeholder="e.g. 2,800" 
+                  value={surgeryBalance}
+                  onChange={(e) => setSurgeryBalance(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Laboratory Test(s) (Php)</Label>
+                <Input 
+                  placeholder="e.g. 1,500" 
+                  value={surgeryLabTests}
+                  onChange={(e) => setSurgeryLabTests(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-primary">TOTAL AMOUNT (Php)</Label>
+                <Input 
+                  className="border-primary ring-offset-primary"
+                  placeholder="e.g. 6,500" 
+                  value={surgeryTotal}
+                  onChange={(e) => setSurgeryTotal(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowSurgeryDialog(false)}>Cancel</Button>
+              <Button onClick={() => { generateSurgery(); setShowSurgeryDialog(false); }}>
+                Generate PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {

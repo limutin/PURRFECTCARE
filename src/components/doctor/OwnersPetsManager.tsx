@@ -13,11 +13,11 @@ import { Skeleton } from '../ui/skeleton';
 import { Eye, Plus, Search, User, PawPrint, Trash2, Loader2, Edit2, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface ClientsPetsManagerProps {
+interface OwnersPetsManagerProps {
   accessToken: string;
 }
 
-export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
+export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
   const [owners, setOwners] = useState<any[]>([]);
   const [pets, setPets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +28,7 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
 
   // Form states
   const [ownerName, setOwnerName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerAddress, setOwnerAddress] = useState('');
   const [ownerContact, setOwnerContact] = useState('');
   const [petName, setPetName] = useState('');
@@ -35,8 +36,11 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
   const [petColor, setPetColor] = useState('');
   const [petType, setPetType] = useState('Dog');
   const [petSex, setPetSex] = useState('male');
+  const [petBreed, setPetBreed] = useState('');
+  const [petNeuteringDate, setPetNeuteringDate] = useState('');
   const [petWeight, setPetWeight] = useState('');
   const [petTemperature, setPetTemperature] = useState('');
+  const [petMicrochip, setPetMicrochip] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -91,15 +95,19 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
               name: ownerName,
               address: ownerAddress,
               contact: ownerContact,
+              email: ownerEmail,
             },
             pet: {
               name: petName,
               type: petType,
               birthday: petBirthday,
+              breed: petBreed,
               color: petColor,
               sex: petSex,
               weight: parseFloat(petWeight),
               temperature: parseFloat(petTemperature),
+              neutering_date: petNeuteringDate || null,
+              microchip: petMicrochip,
             },
           }),
         }
@@ -141,6 +149,7 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
             name: ownerName,
             address: ownerAddress,
             contact: ownerContact,
+            email: ownerEmail,
           }),
         }
       );
@@ -159,10 +168,13 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
             name: petName,
             type: petType,
             birthday: petBirthday,
+            breed: petBreed,
             color: petColor,
             sex: petSex,
             weight: parseFloat(petWeight),
             temperature: parseFloat(petTemperature),
+            neutering_date: petNeuteringDate || null,
+            microchip: petMicrochip,
           }),
         }
       );
@@ -216,6 +228,7 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
     setEditingPet(pet);
     if (owner) {
       setOwnerName(owner.value.name);
+      setOwnerEmail(owner.value.email || '');
       setOwnerAddress(owner.value.address);
       setOwnerContact(owner.value.contact);
     }
@@ -224,12 +237,16 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
     setPetBirthday(pet.value.birthday);
     setPetColor(pet.value.color || '');
     setPetSex(pet.value.sex);
+    setPetBreed(pet.value.breed || '');
+    setPetNeuteringDate(pet.value.neutering_date || '');
     setPetWeight(pet.value.weight.toString());
     setPetTemperature(pet.value.temperature?.toString() || '');
+    setPetMicrochip(pet.value.microchip || '');
   };
 
   const resetForm = () => {
     setOwnerName('');
+    setOwnerEmail('');
     setOwnerAddress('');
     setOwnerContact('');
     setPetName('');
@@ -237,8 +254,11 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
     setPetBirthday('');
     setPetColor('');
     setPetSex('male');
+    setPetBreed('');
+    setPetNeuteringDate('');
     setPetWeight('');
     setPetTemperature('');
+    setPetMicrochip('');
     setEditingPet(null);
   };
 
@@ -249,6 +269,7 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
       pet.value.name?.toLowerCase().includes(s) ||
       owner?.value.name?.toLowerCase().includes(s) ||
       owner?.value.address?.toLowerCase().includes(s) ||
+      owner?.value.email?.toLowerCase().includes(s) ||
       pet.value.pet_uid?.toLowerCase().includes(s)
     );
   });
@@ -257,26 +278,27 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold mb-2">Clients & Pets</h1>
+          <h1 className="text-2xl font-bold mb-2">Owners & Pets</h1>
           <p className="text-muted-foreground">Manage your clinic database</p>
         </div>
         <Dialog open={showAddDialog || !!editingPet} onOpenChange={(o: boolean) => { if (!o) { setShowAddDialog(false); setEditingPet(null); resetForm(); } }}>
           {!editingPet && (
             <DialogTrigger asChild>
-              <Button onClick={() => setShowAddDialog(true)}><Plus className="w-4 h-4 mr-2" /> Add Client & Pet</Button>
+              <Button onClick={() => setShowAddDialog(true)}><Plus className="w-4 h-4 mr-2" /> Add Owner & Pet</Button>
             </DialogTrigger>
           )}
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingPet ? 'Update Record' : 'Register New Client'}</DialogTitle>
+              <DialogTitle>{editingPet ? 'Update Record' : 'Register New Owner'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={editingPet ? handleUpdate : handleAddOwnerAndPet} className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-2 font-bold text-primary"><User className="w-4 h-4" /> Owner Information</div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Name *</Label><Input value={ownerName} onChange={e => setOwnerName(e.target.value)} required /></div>
+                  <div className="space-y-2"><Label>Email</Label><Input type="email" value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)} placeholder="email@example.com" /></div>
                   <div className="space-y-2"><Label>Contact *</Label><Input value={ownerContact} onChange={e => setOwnerContact(e.target.value)} required /></div>
-                  <div className="col-span-2 space-y-2"><Label>Address *</Label><Input value={ownerAddress} onChange={e => setOwnerAddress(e.target.value)} required /></div>
+                  <div className="space-y-2"><Label>Address *</Label><Input value={ownerAddress} onChange={e => setOwnerAddress(e.target.value)} required /></div>
                 </div>
               </div>
               <div className="space-y-4">
@@ -284,21 +306,23 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Pet Name *</Label><Input value={petName} onChange={e => setPetName(e.target.value)} required /></div>
                   <div className="space-y-2">
-                    <Label>Type of Pet *</Label>
+                    <Label>Species *</Label>
                     <Select value={petType} onValueChange={setPetType} required>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder="Select species" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Dog">Dog</SelectItem>
                         <SelectItem value="Cat">Cat</SelectItem>
                         <SelectItem value="Bird">Bird</SelectItem>
                         <SelectItem value="Rabbit">Rabbit</SelectItem>
+                        <SelectItem value="Hamster">Hamster</SelectItem>
                         <SelectItem value="Reptile">Reptile</SelectItem>
                         <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2"><Label>Breed</Label><Input value={petBreed} onChange={e => setPetBreed(e.target.value)} placeholder="e.g. Golden Retriever" /></div>
                   <div className="space-y-2">
                     <Label>Gender *</Label>
                     <Select value={petSex} onValueChange={setPetSex} required>
@@ -312,9 +336,12 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2"><Label>Color</Label><Input value={petColor} onChange={e => setPetColor(e.target.value)} /></div>
                   <div className="space-y-2"><Label>Birthday *</Label><Input type="date" value={petBirthday} onChange={e => setPetBirthday(e.target.value)} required /></div>
-                  <div className="space-y-2"><Label>Weight (kg) *</Label><Input type="number" step="0.1" value={petWeight} onChange={e => setPetWeight(e.target.value)} required /></div>
-                  <div className="space-y-2"><Label>Temp (°C) *</Label><Input type="number" step="0.1" value={petTemperature} onChange={e => setPetTemperature(e.target.value)} required /></div>
+                  <div className="space-y-2"><Label>Date of Neutering</Label><Input type="date" value={petNeuteringDate} onChange={e => setPetNeuteringDate(e.target.value)} /></div>
+                  <div className="space-y-2"><Label>Weight (kg)</Label><Input type="number" step="0.1" value={petWeight} onChange={e => setPetWeight(e.target.value)} /></div>
+                  <div className="space-y-2"><Label>Temp (°C)</Label><Input type="number" step="0.1" value={petTemperature} onChange={e => setPetTemperature(e.target.value)} /></div>
+                  <div className="space-y-2"><Label>Microchip #</Label><Input value={petMicrochip} onChange={e => setPetMicrochip(e.target.value)} placeholder="N/A" /></div>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -341,7 +368,8 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Pet Name</TableHead>
-                <TableHead>Pet Type</TableHead>
+                <TableHead>Species</TableHead>
+                <TableHead>Breed</TableHead>
                 <TableHead>Owner Name</TableHead>
                 <TableHead>Address</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -382,6 +410,11 @@ export function ClientsPetsManager({ accessToken }: ClientsPetsManagerProps) {
                       <TableCell>
                         <span className="text-sm font-medium">
                           {p.value.type || 'Unclassified'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm opacity-80">
+                          {p.value.breed || 'N/A'}
                         </span>
                       </TableCell>
                       <TableCell>

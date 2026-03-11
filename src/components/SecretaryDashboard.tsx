@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Heart, LayoutDashboard, Users, Calendar, FileText, Banknote, LogOut } from 'lucide-react';
 import { DashboardOverview } from './secretary/DashboardOverview';
-import { ClientsPetsManager } from './secretary/ClientsPetsManager';
+import { OwnersPetsManager } from './secretary/OwnersPetsManager';
 import { AppointmentsManager } from './secretary/AppointmentsManager';
 import { RecordsViewer } from './secretary/RecordsViewer';
 import { BillingViewer } from './secretary/BillingViewer';
@@ -18,7 +18,7 @@ export function SecretaryDashboard({ user, accessToken, onLogout }: SecretaryDas
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'clients', label: 'Clients & Pets', icon: Users },
+    { id: 'clients', label: 'Owners & Pets', icon: Users },
     { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'records', label: 'Medical Records', icon: FileText },
     { id: 'billing', label: 'Billing', icon: Banknote },
@@ -32,7 +32,7 @@ export function SecretaryDashboard({ user, accessToken, onLogout }: SecretaryDas
           else setActiveTab(tab);
         }} />;
       case 'clients':
-        return <ClientsPetsManager accessToken={accessToken} />;
+        return <OwnersPetsManager accessToken={accessToken} />;
       case 'appointments':
         return <AppointmentsManager accessToken={accessToken} />;
       case 'records':

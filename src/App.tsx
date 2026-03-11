@@ -4,7 +4,7 @@ import { supabase } from './utils/supabase/client';
 import { LoginPage } from './components/LoginPage';
 import { DoctorDashboard } from './components/DoctorDashboard';
 import { SecretaryDashboard } from './components/SecretaryDashboard';
-import { ClientDashboard } from './components/ClientDashboard';
+import { OwnerDashboard } from './components/OwnerDashboard';
 import { Toaster } from './components/ui/sonner';
 
 
@@ -134,10 +134,10 @@ export default function App() {
     );
   }
 
-  if (user.role === 'client') {
+  if (user.role === 'owner' || user.role === 'client') {
     return (
       <>
-        <ClientDashboard user={user} accessToken={accessToken} onLogout={handleLogout} />
+        <OwnerDashboard user={user} accessToken={accessToken} onLogout={handleLogout} />
         <Toaster />
       </>
     );

@@ -67,13 +67,15 @@ app.post("/make-server-b53d76e4/owners", async (c) => {
     const petUid = `PET-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(4, '0')}`;
 
     const { error: oErr } = await supabase.from('owners').insert({
-      id: ownerId, name: owner.name, address: owner.address, contact: owner.contact, created_by: user?.id
+      id: ownerId, name: owner.name, address: owner.address, contact: owner.contact, email: owner.email, created_by: user?.id
     });
     if (oErr) throw oErr;
 
     const { error: pErr } = await supabase.from('pets').insert({
       id: petId, owner_id: ownerId, pet_uid: petUid, name: pet.name, type: pet.type,
-      birthday: pet.birthday, color: pet.color, sex: pet.sex, weight: pet.weight, temperature: pet.temperature
+      birthday: pet.birthday, breed: pet.breed, color: pet.color, sex: pet.sex,
+      weight: pet.weight, temperature: pet.temperature, neutering_date: pet.neutering_date,
+      microchip: pet.microchip
     });
     if (pErr) throw pErr;
 
@@ -482,8 +484,13 @@ app.post("/make-server-b53d76e4/migrate", async (c) => {
 
     for (const item of raw) {
       const { key, value: v } = item;
-      if (key.startsWith('owner:')) await supabase.from('owners').upsert({ id: v.id, name: v.name, address: v.address, contact: v.contact });
-      else if (key.startsWith('pet:')) await supabase.from('pets').upsert({ id: v.id, owner_id: v.owner_id, pet_uid: v.pet_uid, name: v.name, type: v.type, birthday: v.birthday, color: v.color, sex: v.sex, weight: v.weight, temperature: v.temperature });
+      if (key.startsWith('owner:')) await supabase.from('owners').upsert({ id: v.id, name: v.name, address: v.address, contact: v.contact, email: v.email });
+      else if (key.startsWith('pet:')) await supabase.from('pets').upsert({
+        id: v.id, owner_id: v.owner_id, pet_uid: v.pet_uid, name: v.name, type: v.type,
+        birthday: v.birthday, breed: v.breed, color: v.color, sex: v.sex,
+        weight: v.weight, temperature: v.temperature, neutering_date: v.neutering_date,
+        microchip: v.microchip
+      });
       else if (key.startsWith('diagnosis:')) await supabase.from('diagnoses').upsert({ id: v.id, pet_id: v.pet_id, vaccination: v.vaccination, date: v.date, weight: v.weight, temperature: v.temperature, test: v.test, dx: v.dx, rx: v.rx, remarks: v.remarks });
       else if (key.startsWith('inventory:')) await supabase.from('inventory').upsert({ id: v.id, name: v.name, quantity: v.quantity, price: v.price });
     }

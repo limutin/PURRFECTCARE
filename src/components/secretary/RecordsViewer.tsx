@@ -87,7 +87,7 @@ export function RecordsViewer({ accessToken }: RecordsViewerProps) {
         <body>
           <div class="header"><h1>PURRFECTCARE</h1><p>Medical Examination Report</p></div>
           <div class="info">
-            <div><div class="label">Patient</div><b>${pet?.value.name} (${pet?.value.type})</b></div>
+            <div><div class="label">Patient</div><b>${pet?.value.name} (${pet?.value.type}) - ${pet?.value.breed || 'N/A'}</b></div>
             <div><div class="label">Owner</div><b>${owner?.value.name}</b></div>
             <div><div class="label">Date</div><b>${formatDate(diagnosis.value.date)}</b></div>
           </div>
@@ -141,7 +141,7 @@ export function RecordsViewer({ accessToken }: RecordsViewerProps) {
         {selectedPetId && (
           <Button variant="ghost" size="sm" onClick={() => { setSelectedPetId(null); setSearchTerm(''); }} className="mb-2 p-0 h-auto hover:bg-transparent text-primary flex items-center gap-1 group">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-sm font-bold">Back to All Patients</span>
+            <span className="text-sm font-bold">Back to All Owners</span>
           </Button>
         )}
         <h1 className="text-3xl font-extrabold tracking-tight">
@@ -161,7 +161,7 @@ export function RecordsViewer({ accessToken }: RecordsViewerProps) {
               <div><CardTitle className="text-xl">Patients List</CardTitle><CardDescription>Showing all pets with medical records.</CardDescription></div>
               <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search patient or owner..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 h-10 bg-background" />
+                <Input placeholder="Search owner or pet..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 h-10 bg-background" />
               </div>
             </div>
           </CardHeader>
@@ -181,7 +181,7 @@ export function RecordsViewer({ accessToken }: RecordsViewerProps) {
                           </div>
                           <div className="flex-1">
                             <h3 className="font-bold text-lg leading-none mb-1 group-hover:text-primary">{p.value.name}</h3>
-                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-tight mb-3">{p.value.type || 'N/A'}</p>
+                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-tight mb-3">{p.value.type || 'N/A'} {p.value.breed ? `• ${p.value.breed}` : ''}</p>
                             <div className="flex items-center gap-2 text-sm text-foreground/80 pt-2 border-t">
                               <User className="w-3.5 h-3.5 opacity-50" />
                               <span className="truncate">Owner: <b>{o?.value.name || 'Unknown'}</b></span>
