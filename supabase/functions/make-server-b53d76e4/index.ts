@@ -75,7 +75,6 @@ app.post("/make-server-b53d76e4/owners", async (c) => {
       id: petId, owner_id: ownerId, pet_uid: petUid, name: pet.name, type: pet.type,
       birthday: pet.birthday, breed: pet.breed, color: pet.color, sex: pet.sex,
       weight: pet.weight, temperature: pet.temperature, neutering_date: pet.neutering_date,
-      microchip: pet.microchip
     });
     if (pErr) throw pErr;
 
@@ -489,7 +488,6 @@ app.post("/make-server-b53d76e4/migrate", async (c) => {
         id: v.id, owner_id: v.owner_id, pet_uid: v.pet_uid, name: v.name, type: v.type,
         birthday: v.birthday, breed: v.breed, color: v.color, sex: v.sex,
         weight: v.weight, temperature: v.temperature, neutering_date: v.neutering_date,
-        microchip: v.microchip
       });
       else if (key.startsWith('diagnosis:')) await supabase.from('diagnoses').upsert({ id: v.id, pet_id: v.pet_id, vaccination: v.vaccination, date: v.date, weight: v.weight, temperature: v.temperature, test: v.test, dx: v.dx, rx: v.rx, remarks: v.remarks });
       else if (key.startsWith('inventory:')) await supabase.from('inventory').upsert({ id: v.id, name: v.name, quantity: v.quantity, price: v.price });

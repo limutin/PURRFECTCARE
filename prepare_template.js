@@ -22,13 +22,6 @@ xml = xml.replace(/(Vacci.*?ne Used.*?)(<w:t>)(_{3,})/gs, (match, prefix, tagOpe
     return `${prefix}${tagOpen}{vaccine_used}${underscores}`;
 });
 
-// Microchip
-xml = xml.replace(/(Microchi.*?p \(if any\).*?)(<w:t>)(_{3,})/gs, (match, prefix, tagOpen, underscores) => {
-    if (prefix.includes('<w:p ')) return match;
-    console.log("Tagged split: Microchip");
-    return `${prefix}${tagOpen}{microchip}${underscores}`;
-});
-
 // 2. HELPER TO TAG FIELDS
 function tagField(label, tag) {
     const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -35,6 +35,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   const [owners, setOwners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPet, setSelectedPet] = useState('');
+  const [petSearch, setPetSearch] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -229,6 +230,36 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   const [surgeryLabTests, setSurgeryLabTests] = useState('');
   const [surgeryTotal, setSurgeryTotal] = useState('');
   const [showSurgeryDialog, setShowSurgeryDialog] = useState(false);
+
+  // Promissory Note specific states
+  const [promissoryBalance, setPromissoryBalance] = useState('');
+  const [promissoryBalanceWords, setPromissoryBalanceWords] = useState('');
+  const [promissoryService, setPromissoryService] = useState('');
+  const [promissoryServiceDate, setPromissoryServiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [promissoryPaymentDate, setPromissoryPaymentDate] = useState('');
+  const [promissoryContactNumber, setPromissoryContactNumber] = useState('');
+  const [promissoryValidId, setPromissoryValidId] = useState('');
+  const [showPromissoryDialog, setShowPromissoryDialog] = useState(false);
+
+  // Authorization specific states
+  const [authVaccine, setAuthVaccine] = useState(false);
+  const [authTreatment, setAuthTreatment] = useState(false);
+  const [authMedical, setAuthMedical] = useState(false);
+  const [authOther, setAuthOther] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+
+  // Refusal specific states
+  const [refusalTreatment, setRefusalTreatment] = useState(false);
+  const [refusalTreatmentDesc, setRefusalTreatmentDesc] = useState('');
+  const [refusalPresurgical, setRefusalPresurgical] = useState(false);
+  const [refusalCbc, setRefusalCbc] = useState(false);
+  const [refusalUrinalysis, setRefusalUrinalysis] = useState(false);
+  const [refusalSerum, setRefusalSerum] = useState(false);
+  const [refusalRadiographs, setRefusalRadiographs] = useState(false);
+  const [refusalRadiographsDesc, setRefusalRadiographsDesc] = useState('');
+  const [refusalOther, setRefusalOther] = useState(false);
+  const [refusalContactNo, setRefusalContactNo] = useState('');
+  const [showRefusalDialog, setShowRefusalDialog] = useState(false);
 
   useEffect(() => {
     const parseValue = (val: string) => {
@@ -694,6 +725,191 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
     });
   };
 
+  const generatePromissory = () => {
+    if (!selectedPet) return;
+    const pet = pets.find(p => p.value.id === selectedPet);
+    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    if (!pet) return;
+
+    toast.info('Preparing Promissory Note...');
+
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + '?t=' + new Date().getTime())
+        .then(res => { if (!res.ok) throw new Error('Fetch failed: ' + res.statusText); return res.arrayBuffer(); })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
+
+    loadFile('/PromissoryNote_Template.docx', (error, content) => {
+      if (error) { toast.error('Failed to load template'); return; }
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+
+        const formatDate = (dateStr: string) => {
+          if (!dateStr) return '';
+          const date = new Date(dateStr);
+          return date.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
+        };
+        const signDate = new Date();
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+        doc.render({
+          owner_name: owner?.value.name || '',
+          owner_address: owner?.value.address || '',
+          balance_label: promissoryBalanceWords,
+          balance_amount: promissoryBalance,
+          service_description: promissoryService,
+          service_date: formatDate(promissoryServiceDate),
+          payment_date: formatDate(promissoryPaymentDate),
+          sign_day: signDate.getDate().toString(),
+          sign_month: monthNames[signDate.getMonth()],
+          sign_year_2dig: signDate.getFullYear().toString().slice(-2),
+          contact_number: promissoryContactNumber,
+          valid_id: promissoryValidId,
+        });
+
+        const out = doc.getZip().generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `PromissoryNote_${owner?.value.name || pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success('Promissory Note generated successfully!');
+      } catch (err: any) {
+        console.error(err);
+        toast.error('Error generating document: ' + err.message);
+      }
+    });
+  };
+
+  const generateAuthorization = () => {
+    if (!selectedPet) return;
+    const pet = pets.find(p => p.value.id === selectedPet);
+    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    if (!pet) return;
+
+    toast.info('Preparing Authorization...');
+
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + '?t=' + new Date().getTime())
+        .then(res => { if (!res.ok) throw new Error('Fetch failed: ' + res.statusText); return res.arrayBuffer(); })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
+
+    loadFile('/Authorization_Template.docx', (error: any, content: any) => {
+      if (error) { toast.error('Failed to load template'); return; }
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+
+        const today = new Date();
+        const formattedDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+        doc.render({
+          date: formattedDate,
+          owner_name: owner?.value.name || '',
+          pet_name: pet.value.name || '',
+          chk_vaccine: authVaccine ? '✓' : ' ',
+          chk_treatment: authTreatment ? '✓' : ' ',
+          chk_medical: authMedical ? '✓' : ' ',
+          chk_other: authOther ? '✓' : ' ',
+        });
+
+        const out = doc.getZip().generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Authorization_${owner?.value.name || pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success('Authorization form generated successfully!');
+      } catch (err: any) {
+        console.error(err);
+        toast.error('Error generating document: ' + err.message);
+      }
+    });
+  };
+
+  const generateRefusal = () => {
+    if (!selectedPet) return;
+    const pet = pets.find(p => p.value.id === selectedPet);
+    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    if (!pet) return;
+
+    toast.info('Preparing Refusal Form...');
+
+    const loadFile = (url: string, callback: (err: any, data: any) => void) => {
+      fetch(url + '?t=' + new Date().getTime())
+        .then(res => { if (!res.ok) throw new Error('Fetch failed: ' + res.statusText); return res.arrayBuffer(); })
+        .then(data => callback(null, data))
+        .catch(err => callback(err, null));
+    };
+
+    loadFile('/Refusal_Template.docx', (error: any, content: any) => {
+      if (error) { toast.error('Failed to load template'); return; }
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+
+        const today = new Date();
+        const formattedDate = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+        doc.render({
+          date: formattedDate,
+          owner_name: owner?.value.name || '',
+          pet_name: pet.value.name || '',
+          chk_treatment: refusalTreatment ? '✓' : ' ',
+          treatment_desc: refusalTreatmentDesc,
+          chk_presurgical: refusalPresurgical ? '✓' : ' ',
+          chk_cbc: refusalCbc ? '✓' : ' ',
+          chk_urinalysis: refusalUrinalysis ? '✓' : ' ',
+          chk_serum: refusalSerum ? '✓' : ' ',
+          chk_radiographs: refusalRadiographs ? '✓' : ' ',
+          radiographs_desc: refusalRadiographsDesc,
+          chk_other: refusalOther ? '✓' : ' ',
+          owner_address: owner?.value.address || '',
+          contact_number: refusalContactNo,
+        });
+
+        const out = doc.getZip().generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+
+        const url = URL.createObjectURL(out);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Refusal_${owner?.value.name || pet.value.name}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success('Refusal form generated successfully!');
+      } catch (err: any) {
+        console.error(err);
+        toast.error('Error generating document: ' + err.message);
+      }
+    });
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -714,27 +930,59 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Select value={selectedPet} onValueChange={setSelectedPet}>
-                  <SelectTrigger id="pet-select" className="bg-background border-none shadow-sm h-12 focus:ring-2 focus:ring-primary/20 transition-all">
-                    <SelectValue placeholder="Find a pet or owner..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {pets.map((pet) => {
-                      const owner = owners.find((o) => o.value.id === pet.value.owner_id);
-                      return (
-                        <SelectItem key={pet.key} value={pet.value.id} className="py-3 border-b border-muted last:border-0">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-bold text-primary">{pet.value.name}</span>
-                            <span className="text-[10px] text-muted-foreground font-medium uppercase truncate max-w-[200px]">
-                              Owner: {owner?.value.name || 'N/A'}
-                            </span>
+              <div className="space-y-2 relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by pet or owner name..."
+                    value={petSearch}
+                    onChange={(e) => setPetSearch(e.target.value)}
+                    className="bg-background border-none shadow-sm h-12 pl-10 focus:ring-2 focus:ring-primary/20 transition-all"
+                  />
+                </div>
+                
+                {petSearch && (
+                  <div className="absolute z-10 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-[300px] overflow-y-auto">
+                    {pets
+                      .filter(pet => {
+                        const owner = owners.find(o => o.value.id === pet.value.owner_id);
+                        const s = petSearch.toLowerCase();
+                        return pet.value.name.toLowerCase().includes(s) || 
+                               owner?.value.name.toLowerCase().includes(s);
+                      })
+                      .map((pet) => {
+                        const owner = owners.find((o) => o.value.id === pet.value.owner_id);
+                        const isSelected = selectedPet === pet.value.id;
+                        return (
+                          <div 
+                            key={pet.key} 
+                            onClick={() => {
+                              setSelectedPet(pet.value.id);
+                              setPetSearch('');
+                            }}
+                            className={`px-4 py-3 cursor-pointer border-b border-muted last:border-0 hover:bg-primary/5 transition-colors ${isSelected ? 'bg-primary/10' : ''}`}
+                          >
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-primary">{pet.value.name}</span>
+                              <span className="text-[10px] text-muted-foreground font-medium uppercase truncate">
+                                Owner: {owner?.value.name || 'N/A'}
+                              </span>
+                            </div>
                           </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                        );
+                      })}
+                    {pets.filter(pet => {
+                      const owner = owners.find(o => o.value.id === pet.value.owner_id);
+                      const s = petSearch.toLowerCase();
+                      return pet.value.name.toLowerCase().includes(s) || 
+                             owner?.value.name.toLowerCase().includes(s);
+                    }).length === 0 && (
+                      <div className="px-4 py-3 text-sm text-center text-muted-foreground">
+                        No matches found
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {!selectedPet && (
@@ -1133,6 +1381,276 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={showPromissoryDialog} onOpenChange={setShowPromissoryDialog}>
+          <DialogTrigger asChild>
+            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-amber-100">
+              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-amber-200"></div>
+              <CardHeader className="pb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-amber-50 text-amber-700 border-amber-200">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <CardTitle className="text-xl font-bold">Promissory Note</CardTitle>
+                <CardDescription className="leading-relaxed min-h-[60px]">Official payment commitment form documenting the owner's promise to settle outstanding balances.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  disabled={!selectedPet}
+                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <FilePlus className="w-4 h-4 mr-2" />
+                  Generate PROMISSORY
+                </Button>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-amber-600" />
+                Promissory Note Details
+              </DialogTitle>
+              <DialogDescription>
+                Provide the balance and service details for the promissory note.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Balance Amount (Php)</Label>
+                  <Input
+                    placeholder="e.g. 2,500"
+                    value={promissoryBalance}
+                    onChange={(e) => setPromissoryBalance(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Amount in Words</Label>
+                  <Input
+                    placeholder="e.g. Two Thousand Five Hundred"
+                    value={promissoryBalanceWords}
+                    onChange={(e) => setPromissoryBalanceWords(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Service Description</Label>
+                <Input
+                  placeholder="e.g. grooming / surgery / confinement"
+                  value={promissoryService}
+                  onChange={(e) => setPromissoryService(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Date of Service / Visit</Label>
+                <Input
+                  type="date"
+                  value={promissoryServiceDate}
+                  onChange={(e) => setPromissoryServiceDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Agreed Payment Date</Label>
+                <Input
+                  type="date"
+                  value={promissoryPaymentDate}
+                  onChange={(e) => setPromissoryPaymentDate(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Contact Numbers</Label>
+                  <Input
+                    placeholder="e.g. 09123456789"
+                    value={promissoryContactNumber}
+                    onChange={(e) => setPromissoryContactNumber(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Valid ID Presented</Label>
+                  <Input
+                    placeholder="e.g. Driver's License"
+                    value={promissoryValidId}
+                    onChange={(e) => setPromissoryValidId(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPromissoryDialog(false)}>Cancel</Button>
+              <Button onClick={() => { generatePromissory(); setShowPromissoryDialog(false); }}>
+                Generate PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Authorization Dialog */}
+        <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+          <DialogTrigger asChild>
+            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-pink-100">
+              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-pink-200"></div>
+              <CardHeader className="pb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-pink-50 text-pink-700 border-pink-200">
+                  <Activity className="w-6 h-6" />
+                </div>
+                <CardTitle className="text-xl font-bold">Authorization Form</CardTitle>
+                <CardDescription className="leading-relaxed min-h-[60px]">Official medical authorization form for Treatments, Vaccinations, and Medical Tests.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  disabled={!selectedPet}
+                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <FilePlus className="w-4 h-4 mr-2" />
+                  Generate AUTHORIZATION
+                </Button>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                Select Authorized Procedures
+              </DialogTitle>
+              <DialogDescription>
+                Toggle the checkmarks to indicate which procedures the owner is authorizing.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="flex items-center space-x-2 bg-muted/50 p-3 rounded-md shadow-sm border cursor-pointer hover:bg-muted" onClick={() => setAuthVaccine(!authVaccine)}>
+                <input type="checkbox" checked={authVaccine} onChange={() => {}} className="w-5 h-5 accent-primary cursor-pointer rounded-sm" />
+                <Label className="cursor-pointer font-medium text-sm">Vaccination</Label>
+              </div>
+              <div className="flex items-center space-x-2 bg-muted/50 p-3 rounded-md shadow-sm border cursor-pointer hover:bg-muted" onClick={() => setAuthTreatment(!authTreatment)}>
+                <input type="checkbox" checked={authTreatment} onChange={() => {}} className="w-5 h-5 accent-primary cursor-pointer rounded-sm" />
+                <Label className="cursor-pointer font-medium text-sm">Treatment</Label>
+              </div>
+              <div className="flex items-center space-x-2 bg-muted/50 p-3 rounded-md shadow-sm border cursor-pointer hover:bg-muted" onClick={() => setAuthMedical(!authMedical)}>
+                <input type="checkbox" checked={authMedical} onChange={() => {}} className="w-5 h-5 accent-primary cursor-pointer rounded-sm" />
+                <Label className="cursor-pointer font-medium text-sm">Medical Test(s)</Label>
+              </div>
+              <div className="flex items-center space-x-2 bg-muted/50 p-3 rounded-md shadow-sm border cursor-pointer hover:bg-muted" onClick={() => setAuthOther(!authOther)}>
+                <input type="checkbox" checked={authOther} onChange={() => {}} className="w-5 h-5 accent-primary cursor-pointer rounded-sm" />
+                <Label className="cursor-pointer font-medium text-sm">Other</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAuthDialog(false)}>Cancel</Button>
+              <Button onClick={() => { generateAuthorization(); setShowAuthDialog(false); }}>
+                Generate PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Refusal Dialog */}
+        <Dialog open={showRefusalDialog} onOpenChange={setShowRefusalDialog}>
+          <DialogTrigger asChild>
+            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-amber-100">
+              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-amber-200"></div>
+              <CardHeader className="pb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-amber-50 text-amber-700 border-amber-200">
+                  <Activity className="w-6 h-6" />
+                </div>
+                <CardTitle className="text-xl font-bold">Refusal of Treatment</CardTitle>
+                <CardDescription className="leading-relaxed min-h-[60px]">Official medical form documenting the owner's refusal of optional treatments or medical tests.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  disabled={!selectedPet}
+                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                >
+                  <FilePlus className="w-4 h-4 mr-2" />
+                  Generate REFUSAL
+                </Button>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-amber-600" />
+                Select Refused Procedures
+              </DialogTitle>
+              <DialogDescription>
+                Indicate which treatments or tests the owner is refusing, providing descriptions where necessary.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="col-span-2 md:col-span-1 space-y-3 p-4 bg-muted/30 rounded-lg border border-border/50 shadow-sm">
+                <Label className="uppercase text-xs font-bold text-muted-foreground mb-1 block">Treatments</Label>
+                <div className="flex items-start gap-2 space-x-2">
+                  <input type="checkbox" checked={refusalTreatment} onChange={() => setRefusalTreatment(!refusalTreatment)} className="w-5 h-5 mt-1 accent-amber-600 cursor-pointer rounded-sm" />
+                  <div className="space-y-1 block w-full">
+                    <Label className="cursor-pointer font-medium text-sm block" onClick={() => setRefusalTreatment(!refusalTreatment)}>Treatment</Label>
+                    <Input 
+                      placeholder="Describe treatment..." 
+                      className="h-8 text-sm w-full" 
+                      value={refusalTreatmentDesc} 
+                      onChange={(e) => setRefusalTreatmentDesc(e.target.value)} 
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" checked={refusalPresurgical} onChange={() => setRefusalPresurgical(!refusalPresurgical)} className="w-5 h-5 accent-amber-600 cursor-pointer rounded-sm" />
+                  <Label className="cursor-pointer font-medium text-sm" onClick={() => setRefusalPresurgical(!refusalPresurgical)}>Presurgical Screen</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" checked={refusalOther} onChange={() => setRefusalOther(!refusalOther)} className="w-5 h-5 accent-amber-600 cursor-pointer rounded-sm" />
+                  <Label className="cursor-pointer font-medium text-sm" onClick={() => setRefusalOther(!refusalOther)}>Other</Label>
+                </div>
+                <div className="pt-2 space-y-2">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Emergency Contact / Phone</Label>
+                  <Input 
+                    placeholder="e.g. 0912 345 6789" 
+                    value={refusalContactNo} 
+                    onChange={(e) => setRefusalContactNo(e.target.value)} 
+                    className="h-9"
+                  />
+                </div>
+              </div>
+
+              <div className="col-span-2 md:col-span-1 space-y-3 p-4 bg-muted/30 rounded-lg border border-border/50 shadow-sm">
+                <Label className="uppercase text-xs font-bold text-muted-foreground mb-1 block">Diagnostics & Tests</Label>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" checked={refusalCbc} onChange={() => setRefusalCbc(!refusalCbc)} className="w-5 h-5 accent-amber-600 cursor-pointer rounded-sm" />
+                  <Label className="cursor-pointer font-medium text-sm" onClick={() => setRefusalCbc(!refusalCbc)}>Complete Blood Count (CBC)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" checked={refusalUrinalysis} onChange={() => setRefusalUrinalysis(!refusalUrinalysis)} className="w-5 h-5 accent-amber-600 cursor-pointer rounded-sm" />
+                  <Label className="cursor-pointer font-medium text-sm" onClick={() => setRefusalUrinalysis(!refusalUrinalysis)}>Urinalysis</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" checked={refusalSerum} onChange={() => setRefusalSerum(!refusalSerum)} className="w-5 h-5 accent-amber-600 cursor-pointer rounded-sm" />
+                  <Label className="cursor-pointer font-medium text-sm" onClick={() => setRefusalSerum(!refusalSerum)}>Serum Chemistry Profile</Label>
+                </div>
+                <div className="flex items-start gap-2 space-x-2 pt-1 border-t border-border/50 mt-2">
+                  <input type="checkbox" checked={refusalRadiographs} onChange={() => setRefusalRadiographs(!refusalRadiographs)} className="w-5 h-5 mt-1 accent-amber-600 cursor-pointer rounded-sm" />
+                  <div className="space-y-1 block w-full">
+                    <Label className="cursor-pointer font-medium text-sm block" onClick={() => setRefusalRadiographs(!refusalRadiographs)}>Radiographs</Label>
+                    <Input 
+                      placeholder="Describe radiographs..." 
+                      className="h-8 text-sm w-full" 
+                      value={refusalRadiographsDesc} 
+                      onChange={(e) => setRefusalRadiographsDesc(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="mt-6 pt-4 border-t">
+              <Button variant="outline" onClick={() => setShowRefusalDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => { generateRefusal(); setShowRefusalDialog(false); }}>
+                Generate PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
 
       {

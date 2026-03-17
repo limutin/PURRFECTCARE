@@ -40,7 +40,6 @@ export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
   const [petNeuteringDate, setPetNeuteringDate] = useState('');
   const [petWeight, setPetWeight] = useState('');
   const [petTemperature, setPetTemperature] = useState('');
-  const [petMicrochip, setPetMicrochip] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -107,7 +106,6 @@ export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
               weight: parseFloat(petWeight),
               temperature: parseFloat(petTemperature),
               neutering_date: petNeuteringDate || null,
-              microchip: petMicrochip,
             },
           }),
         }
@@ -174,7 +172,6 @@ export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
             weight: parseFloat(petWeight),
             temperature: parseFloat(petTemperature),
             neutering_date: petNeuteringDate || null,
-            microchip: petMicrochip,
           }),
         }
       );
@@ -241,7 +238,6 @@ export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
     setPetNeuteringDate(pet.value.neutering_date || '');
     setPetWeight(pet.value.weight.toString());
     setPetTemperature(pet.value.temperature?.toString() || '');
-    setPetMicrochip(pet.value.microchip || '');
   };
 
   const resetForm = () => {
@@ -258,7 +254,6 @@ export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
     setPetNeuteringDate('');
     setPetWeight('');
     setPetTemperature('');
-    setPetMicrochip('');
     setEditingPet(null);
   };
 
@@ -341,7 +336,6 @@ export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
                   <div className="space-y-2"><Label>Date of Neutering</Label><Input type="date" value={petNeuteringDate} onChange={e => setPetNeuteringDate(e.target.value)} /></div>
                   <div className="space-y-2"><Label>Weight (kg)</Label><Input type="number" step="0.1" value={petWeight} onChange={e => setPetWeight(e.target.value)} /></div>
                   <div className="space-y-2"><Label>Temp (°C)</Label><Input type="number" step="0.1" value={petTemperature} onChange={e => setPetTemperature(e.target.value)} /></div>
-                  <div className="space-y-2"><Label>Microchip #</Label><Input value={petMicrochip} onChange={e => setPetMicrochip(e.target.value)} placeholder="N/A" /></div>
                 </div>
               </div>
               <div className="flex justify-end gap-2">

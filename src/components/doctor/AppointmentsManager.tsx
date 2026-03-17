@@ -28,6 +28,7 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
   const [saving, setSaving] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [sendingSms, setSendingSms] = useState<string | null>(null);
+  const [petSearch, setPetSearch] = useState('');
 
   // Form states
   const [petId, setPetId] = useState('');
@@ -285,26 +286,58 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAddOrUpdate} className="space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-2 relative">
                   <Label htmlFor="pet">Pet *</Label>
-                  <Select value={petId} onValueChange={setPetId} required>
-                    <SelectTrigger id="pet">
-                      <SelectValue placeholder="Select a pet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pets.map((pet) => {
-                        const owner = owners.find((o) => o.value.id === pet.value.owner_id);
-                        return (
-                          <SelectItem key={pet.key} value={pet.value.id}>
-                            <div className="flex flex-col py-1">
-                              <span className="font-bold">{pet.value.name}</span>
-                              <span className="text-[10px] text-muted-foreground uppercase font-mono">Owner: {owner?.value.name || 'N/A'}</span>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                  <div className="relative">
+                    <Input
+                      id="pet"
+                      placeholder="Search by pet or owner name..."
+                      value={petSearch || (petId ? pets.find(p => p.value.id === petId)?.value.name : '')}
+                      onChange={(e) => {
+                        setPetSearch(e.target.value);
+                        if (petId) setPetId(''); // Clear selection if typing
+                      }}
+                      autoComplete="off"
+                      className="bg-background"
+                      required={!petId}
+                    />
+                    {petSearch && (
+                      <div className="absolute z-50 w-full mt-1 bg-background border rounded-lg shadow-xl max-h-[200px] overflow-y-auto">
+                        {pets
+                          .filter(pet => {
+                            const owner = owners.find(o => o.value.id === pet.value.owner_id);
+                            const s = petSearch.toLowerCase();
+                            return pet.value.name.toLowerCase().includes(s) || 
+                                   owner?.value.name.toLowerCase().includes(s);
+                          })
+                          .map((pet) => {
+                            const owner = owners.find((o) => o.value.id === pet.value.owner_id);
+                            return (
+                              <div 
+                                key={pet.key} 
+                                onClick={() => {
+                                  setPetId(pet.value.id);
+                                  setPetSearch('');
+                                }}
+                                className="px-3 py-2 cursor-pointer border-b border-muted last:border-0 hover:bg-primary/5 transition-colors"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-sm">{pet.value.name}</span>
+                                  <span className="text-[10px] text-muted-foreground uppercase">
+                                    Owner: {owner?.value.name || 'N/A'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                  {petId && !petSearch && (
+                    <p className="text-[10px] text-primary font-medium mt-1">
+                      Selected: {pets.find(p => p.value.id === petId)?.value.name} (Owner: {owners.find(o => o.value.id === pets.find(p => p.value.id === petId)?.value.owner_id)?.value.name})
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

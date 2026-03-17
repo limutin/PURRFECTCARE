@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
-import { Plus, Printer, Loader2, Banknote, Clock, Receipt, PawPrint, User, Trash2 } from 'lucide-react';
+import { Plus, Printer, Loader2, Banknote, Clock, Receipt, PawPrint, User, Trash2, CheckCircle2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BillingManagerProps {
@@ -26,6 +26,8 @@ export function BillingManager({ accessToken }: BillingManagerProps) {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [petId, setPetId] = useState('');
   const [diagnosisId, setDiagnosisId] = useState('');
@@ -151,6 +153,38 @@ export function BillingManager({ accessToken }: BillingManagerProps) {
       toast.error('Failed to create bill');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUpdateStatus = async (billId: string, newStatus: string) => {
+    setUpdatingId(billId);
+    try {
+      // Direct REST API update as a robust workaround
+      const response = await fetch(
+        `https://${projectId}.supabase.co/rest/v1/billing?id=eq.${encodeURIComponent(billId)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+            'apikey': publicAnonKey,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update bill status');
+      }
+
+      toast.success(`Bill marked as ${newStatus} successfully!`);
+      fetchData();
+    } catch (error) {
+      console.error('Error updating bill:', error);
+      toast.error('Failed to update payment status');
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -450,6 +484,17 @@ export function BillingManager({ accessToken }: BillingManagerProps) {
     setSelectedItems([]);
   };
 
+  const filteredBills = bills.filter((bill) => {
+    const pet = pets.find((p) => p.value.id === bill.value.pet_id);
+    const owner = owners.find((o) => o.value.id === pet?.value.owner_id);
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      pet?.value.name?.toLowerCase().includes(searchLower) ||
+      owner?.value.name?.toLowerCase().includes(searchLower) ||
+      bill.value.id.toLowerCase().includes(searchLower)
+    );
+  });
+
   const BillingSkeleton = () => (
     <div className="space-y-4">
       {[...Array(4)].map((_, i) => (
@@ -609,11 +654,24 @@ export function BillingManager({ accessToken }: BillingManagerProps) {
 
       <Card className="border-none shadow-xl bg-card">
         <CardHeader className="border-b bg-muted/20">
-          <CardTitle className="text-xl font-bold flex items-center gap-2">
-            <Clock className="w-5 h-5 text-primary" />
-            Billing History
-          </CardTitle>
-          <CardDescription>View and manage all financial transactions</CardDescription>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-xl font-bold flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                Billing History
+              </CardTitle>
+              <CardDescription>View and manage all financial transactions</CardDescription>
+            </div>
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by pet or owner..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-6">
           {loading ? (
@@ -638,7 +696,7 @@ export function BillingManager({ accessToken }: BillingManagerProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bills
+                  {filteredBills
                     .sort((a, b) => new Date(b.value.created_at).getTime() - new Date(a.value.created_at).getTime())
                     .map((bill) => {
                       const pet = pets.find((p) => p.value.id === bill.value.pet_id);
@@ -654,23 +712,38 @@ export function BillingManager({ accessToken }: BillingManagerProps) {
                           </TableCell>
                           <TableCell className="font-bold text-primary text-base">₱{bill.value.total_cost.toFixed(2)}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant={bill.value.status === 'paid' ? 'default' : 'secondary'}
-                              className={bill.value.status === 'paid' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}
-                            >
-                              {bill.value.status === 'paid' ? '● Paid' : '○ Unpaid'}
+                            <Badge variant={bill.value.status === 'paid' ? 'default' : 'secondary'} className="capitalize">
+                              {bill.value.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handlePrintReceipt(bill)}
-                              className="h-8 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
-                            >
-                              <Printer className="w-4 h-4 mr-1" />
-                              Print
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              {bill.value.status !== 'paid' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 hover:border-emerald-300 transition-all font-semibold"
+                                  onClick={() => handleUpdateStatus(bill.value.id, 'paid')}
+                                  disabled={updatingId === bill.value.id}
+                                >
+                                  {updatingId === bill.value.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
+                                  ) : (
+                                    <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                                  )}
+                                  <span className="whitespace-nowrap">Mark as Paid</span>
+                                </Button>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePrintReceipt(bill)}
+                                className="h-8 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                              >
+                                <Printer className="w-3.5 h-3.5 mr-1" />
+                                Receipt
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
