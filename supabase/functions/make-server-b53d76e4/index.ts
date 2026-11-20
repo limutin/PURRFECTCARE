@@ -75,6 +75,7 @@ app.post("/make-server-b53d76e4/owners", async (c) => {
       id: petId, owner_id: ownerId, pet_uid: petUid, name: pet.name, type: pet.type,
       birthday: pet.birthday, breed: pet.breed, color: pet.color, sex: pet.sex,
       weight: pet.weight, temperature: pet.temperature, neutering_date: pet.neutering_date,
+      microchip: pet.microchip
     });
     if (pErr) throw pErr;
 
@@ -163,24 +164,140 @@ app.post("/make-server-b53d76e4/diagnoses", async (c) => {
 });
 
 app.get("/make-server-b53d76e4/diagnoses", async (c) => {
-  const { data } = await supabase.from('diagnoses').select('*, medications:diagnosis_medications(*, inventory(name))');
+  const { data } = await supabase.from('diagnoses').select('*, medications:diagnosis_medications(*, inventory(name, price))');
   const formatted = (data || []).map(d => ({
     key: d.id,
     value: {
       ...d,
       medications: (d.medications || []).map(m => ({
         ...m,
-        name: m.inventory?.name || 'Unknown Item'
+        name: m.inventory?.name || 'Unknown Item',
+        price: m.inventory?.price ?? 0
       }))
     }
   }));
   return c.json({ diagnoses: formatted });
 });
 
+app.put("/make-server-b53d76e4/diagnoses/:id", async (c) => {
+  try {
+    const id = c.req.param('id');
+    const d = await c.req.json();
+
+    const { error: updError } = await supabase.from('diagnoses').update({
+      vaccination: d.vaccination,
+      date: d.date,
+      weight: d.weight,
+      temperature: d.temperature,
+      test: d.test,
+      dx: d.dx,
+      rx: d.rx,
+      remarks: d.remarks,
+      follow_up_date: d.follow_up_date || null,
+    }).eq('id', id);
+    if (updError) throw updError;
+
+    // Replace dispensed medications with the edited list
+    if (Array.isArray(d.medications)) {
+      const { error: delErr } = await supabase.from('diagnosis_medications').delete().eq('diagnosis_id', id);
+      if (delErr) throw delErr;
+      const meds = d.medications
+        .filter(m => m.inventory_id)
+        .map(m => ({ diagnosis_id: id, inventory_id: m.inventory_id, quantity: m.quantity }));
+      if (meds.length) {
+        const { error: medError } = await supabase.from('diagnosis_medications').insert(meds);
+        if (medError) throw medError;
+      }
+    }
+
+    return c.json({ message: "Diagnosis updated", id });
+  } catch (e) {
+    console.error("Diagnosis PUT error:", e);
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 app.delete("/make-server-b53d76e4/diagnoses/:id", async (c) => {
   const { error } = await supabase.from('diagnoses').delete().eq('id', c.req.param('id'));
   if (error) return c.json({ error: error.message }, 500);
   return c.json({ message: "Deleted" });
+});
+
+// ============== PET MEDICAL HISTORY ============== //
+// Vaccinations, deworming and other history entries, including ones done at
+// another clinic before the pet transferred here.
+
+const HISTORY_FIELDS = ['pet_id', 'type', 'name', 'date', 'next_due_date', 'source', 'notes'];
+const pickHistory = (body) => {
+  const out = {};
+  for (const k of HISTORY_FIELDS) if (k in body) out[k] = body[k] === '' ? null : body[k];
+  return out;
+};
+
+app.get("/make-server-b53d76e4/pet-history", async (c) => {
+  let query = supabase.from('pet_history').select('*').order('date', { ascending: false });
+  const petId = c.req.query('pet_id');
+  if (petId) query = query.eq('pet_id', petId);
+  const { data, error } = await query;
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ history: (data || []).map(h => ({ key: h.id, value: h })) });
+});
+
+app.post("/make-server-b53d76e4/pet-history", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    const body = await c.req.json();
+    if (!body.pet_id || !body.type || !body.date) throw new Error('pet_id, type and date are required');
+    const id = `history:${Date.now()}`;
+    const { error } = await supabase.from('pet_history').insert({ id, ...pickHistory(body), created_by: user?.id });
+    if (error) throw error;
+    return c.json({ message: "Created", id });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.put("/make-server-b53d76e4/pet-history/:id", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { error } = await supabase.from('pet_history').update(pickHistory(body)).eq('id', c.req.param('id'));
+    if (error) throw error;
+    return c.json({ message: "Updated" });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.delete("/make-server-b53d76e4/pet-history/:id", async (c) => {
+  const { error } = await supabase.from('pet_history').delete().eq('id', c.req.param('id'));
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ message: "Deleted" });
+});
+
+// ============== VHC (HEALTH CERTIFICATES) ============== //
+
+app.get("/make-server-b53d76e4/vhc/last-control", async (c) => {
+  const { data, error } = await supabase.from('vhc_certificates')
+    .select('control_no').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ control_no: data?.control_no || null });
+});
+
+app.post("/make-server-b53d76e4/vhc", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    const b = await c.req.json();
+    if (!b.control_no) throw new Error('control_no is required');
+    const { error } = await supabase.from('vhc_certificates').insert({
+      control_no: b.control_no, pet_id: b.pet_id || null, pet_name: b.pet_name, owner_name: b.owner_name,
+      vaccine_used: b.vaccine_used, vaccine_date: b.vaccine_date || null, destination: b.destination,
+      created_by: user?.id,
+    });
+    if (error) throw error;
+    return c.json({ message: "Recorded" });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
 });
 
 // ============== INVENTORY ============== //
@@ -230,7 +347,7 @@ app.delete("/make-server-b53d76e4/inventory/:id", async (c) => {
 // ============== APPOINTMENTS ============== //
 
 // Helper to send SMS via Semaphore
-async function sendSms(name, petName, time, number, type, reason) {
+function buildReminderMessage(name, petName, time, type, reason) {
   const formatTime12h = (t) => {
     const [h, m] = t.split(':').map(Number);
     const period = h >= 12 ? 'PM' : 'AM';
@@ -246,19 +363,69 @@ async function sendSms(name, petName, time, number, type, reason) {
   } else {
     message = `Hi ${name}, this is PurrfectAC. Just a friendly reminder that ${petName} has an appointment${reasonText} TOMORROW at ${formattedTime}.`;
   }
+  return message;
+}
 
-  const params = new URLSearchParams();
-  params.append('apikey', 'bc9ba5a742210fa6a0ee9c8dda9a4009');
-  params.append('number', number);
-  params.append('message', message);
-  params.append('sendername', 'PurrfectAC');
+async function sendSms(name, petName, time, number, type, reason) {
+  const message = buildReminderMessage(name, petName, time, type, reason);
 
-  const response = await fetch('https://api.semaphore.co/api/v4/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString()
-  });
-  return response.ok;
+  const result = await sendSemaphore(number, message);
+  if (!result.ok) console.error(`SMS to ${maskNumber(number)} failed: ${result.error}`);
+  return result.ok;
+}
+
+// Normalizes a PH mobile number to 09XXXXXXXXX. Takes the first number if
+// several are stored ("0917... / 0918..."). Returns null if it isn't valid.
+function normalizePhNumber(raw) {
+  if (!raw) return null;
+  const first = String(raw).split(/[\/,;|]| or /i)[0];
+  let digits = first.replace(/\D/g, '');
+  if (digits.startsWith('63') && digits.length === 12) digits = '0' + digits.slice(2);
+  if (digits.length === 10 && digits.startsWith('9')) digits = '0' + digits;
+  return /^09\d{9}$/.test(digits) ? digits : null;
+}
+
+const maskNumber = (n) => String(n || '').replace(/\d(?=\d{3})/g, '*');
+
+// Sends via Semaphore and checks the response body: Semaphore can answer
+// HTTP 200 while the message itself was rejected (bad number, no credits,
+// unapproved sender name).
+async function sendSemaphore(rawNumber, message) {
+  const number = normalizePhNumber(rawNumber);
+  if (!number) return { ok: false, error: `Invalid mobile number "${rawNumber}". Use the format 09XXXXXXXXX.` };
+
+  const apiKey = Deno.env.get('SEMAPHORE_API_KEY') ?? 'bc9ba5a742210fa6a0ee9c8dda9a4009';
+  const senderName = Deno.env.get('SEMAPHORE_SENDER_NAME') ?? 'PurrfectAC';
+
+  const send = async (withSender) => {
+    const params = new URLSearchParams();
+    params.append('apikey', apiKey);
+    params.append('number', number);
+    params.append('message', message);
+    if (withSender && senderName) params.append('sendername', senderName);
+    const response = await fetch('https://api.semaphore.co/api/v4/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    });
+    const text = await response.text();
+    let body = null;
+    try { body = JSON.parse(text); } catch { /* not JSON */ }
+    const first = Array.isArray(body) ? body[0] : null;
+    const status = String(first?.status || '').toLowerCase();
+    if (response.ok && first?.message_id && !['failed', 'refunded'].includes(status)) {
+      return { ok: true };
+    }
+    return { ok: false, error: `Semaphore (${response.status}): ${text.slice(0, 300)}` };
+  };
+
+  let result = await send(true);
+  // An unapproved sender name is the most common rejection: retry with the default sender.
+  if (!result.ok && /sender/i.test(result.error)) {
+    const retry = await send(false);
+    if (retry.ok) return retry;
+  }
+  return result;
 }
 
 // Logic to check if an appointment needs an SMS and send it
@@ -384,19 +551,35 @@ app.post("/make-server-b53d76e4/send-sms", async (c) => {
       return c.json({ error: "Owner contact number not found" }, 400);
     }
 
-    const number = appt.pets.owners.contact;
-
     const updateData = type === 'sameday' ? { sms_sameday_sent: true } : { sms_1d_sent: true };
 
-    const ok = await sendSms(appt.pets.owners.name, appt.pets.name, appt.time, appt.pets.owners.contact, type, appt.reason);
-    if (ok) {
+    const message = buildReminderMessage(appt.pets.owners.name, appt.pets.name, appt.time, type, appt.reason);
+    const result = await sendSemaphore(appt.pets.owners.contact, message);
+    if (result.ok) {
       await supabase.from('appointments').update(updateData).eq('id', appointment_id);
       return c.json({ message: "SMS sent successfully" });
-    } else {
-      throw new Error(`Semaphore SMS Error`);
     }
+    return c.json({ error: result.error }, 502);
   } catch (e: any) {
     console.error('Manual SMS Error:', e);
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// Free-form SMS to an owner (e.g. "results are ready", "pet ready for pickup")
+app.post("/make-server-b53d76e4/send-custom-sms", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const { owner_id, message } = await c.req.json();
+    if (!owner_id || !message?.trim()) return c.json({ error: "owner_id and message are required" }, 400);
+    if (message.length > 480) return c.json({ error: "Message is too long (max 480 characters)" }, 400);
+    const { data: owner } = await supabase.from('owners').select('name, contact').eq('id', owner_id).maybeSingle();
+    if (!owner?.contact) return c.json({ error: "Owner has no contact number" }, 400);
+    const result = await sendSemaphore(owner.contact, message.trim());
+    if (!result.ok) return c.json({ error: result.error }, 502);
+    return c.json({ message: "SMS sent successfully" });
+  } catch (e) {
     return c.json({ error: e.message }, 500);
   }
 });
@@ -488,6 +671,7 @@ app.post("/make-server-b53d76e4/migrate", async (c) => {
         id: v.id, owner_id: v.owner_id, pet_uid: v.pet_uid, name: v.name, type: v.type,
         birthday: v.birthday, breed: v.breed, color: v.color, sex: v.sex,
         weight: v.weight, temperature: v.temperature, neutering_date: v.neutering_date,
+        microchip: v.microchip
       });
       else if (key.startsWith('diagnosis:')) await supabase.from('diagnoses').upsert({ id: v.id, pet_id: v.pet_id, vaccination: v.vaccination, date: v.date, weight: v.weight, temperature: v.temperature, test: v.test, dx: v.dx, rx: v.rx, remarks: v.remarks });
       else if (key.startsWith('inventory:')) await supabase.from('inventory').upsert({ id: v.id, name: v.name, quantity: v.quantity, price: v.price });

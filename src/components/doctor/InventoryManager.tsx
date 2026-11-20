@@ -13,6 +13,18 @@ import { Skeleton } from '../ui/skeleton';
 import { Plus, Package, AlertCircle, Edit, Trash2, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+export const INVENTORY_CATEGORIES = [
+  'Antibiotic',
+  'Vaccine',
+  'Dewormer',
+  'Anti-inflammatory',
+  'Analgesic',
+  'Supplement',
+  'Laboratory',
+  'Medical Supplies',
+  'Other',
+];
+
 interface InventoryManagerProps {
   accessToken: string;
 }
@@ -245,7 +257,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
             </DialogHeader>
             <form onSubmit={editingItem ? handleUpdateItem : handleAddItem} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Medicine Name *</Label>
+                <Label htmlFor="name">Item Name *</Label>
                 <Input
                   id="name"
                   value={name}
@@ -261,12 +273,9 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Antibiotic">Antibiotic</SelectItem>
-                    <SelectItem value="Vaccine">Vaccine</SelectItem>
-                    <SelectItem value="Anti-inflammatory">Anti-inflammatory</SelectItem>
-                    <SelectItem value="Supplement">Supplement</SelectItem>
-                    <SelectItem value="Analgesic">Analgesic</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
+                    {INVENTORY_CATEGORIES.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -386,10 +395,9 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="Antibiotic">Antibiotic</SelectItem>
-                  <SelectItem value="Vaccine">Vaccine</SelectItem>
-                  <SelectItem value="Anti-inflammatory">Anti-inflammatory</SelectItem>
-                  <SelectItem value="Supplement">Supplement</SelectItem>
+                  {INVENTORY_CATEGORIES.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 

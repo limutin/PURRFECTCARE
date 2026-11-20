@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Calendar } from '../ui/calendar';
 import { Badge } from '../ui/badge';
+import { Textarea } from '../ui/textarea';
 import { Skeleton } from '../ui/skeleton';
 import { Plus, Calendar as CalendarIcon, Clock, Edit, Trash2, Bell, Loader2, MessageSquare, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,6 +29,9 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
   const [saving, setSaving] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [sendingSms, setSendingSms] = useState<string | null>(null);
+  const [smsTarget, setSmsTarget] = useState<{ ownerId: string; ownerName: string; contact: string; petName: string } | null>(null);
+  const [smsText, setSmsText] = useState('');
+  const [sendingCustom, setSendingCustom] = useState(false);
   const [petSearch, setPetSearch] = useState('');
 
   // Form states
@@ -151,6 +155,32 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
     }
   };
 
+  const openMessageOwner = (owner: any, pet: any) => {
+    if (!owner) { toast.error('Owner not found for this appointment'); return; }
+    setSmsTarget({ ownerId: owner.value.id || owner.key, ownerName: owner.value.name, contact: owner.value.contact || '', petName: pet?.value.name || 'your pet' });
+    setSmsText(`Hi ${owner.value.name}, this is PurrfectAC. `);
+  };
+
+  const handleSendCustomSms = async () => {
+    if (!smsTarget || !smsText.trim()) return;
+    setSendingCustom(true);
+    try {
+      const response = await fetch(getFunctionUrl('/send-custom-sms'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}`, 'apikey': publicAnonKey },
+        body: JSON.stringify({ owner_id: smsTarget.ownerId, message: smsText }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to send SMS');
+      toast.success(`Message sent to ${smsTarget.ownerName}`);
+      setSmsTarget(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send SMS');
+    } finally {
+      setSendingCustom(false);
+    }
+  };
+
   const handleSendManualSms = async (appointmentKey: string, type: '1d' | 'sameday') => {
     setSendingSms(appointmentKey + type);
     try {
@@ -235,6 +265,14 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
     };
     return <Badge variant={variants[displayStatus] || 'default'}>{displayStatus}</Badge>;
   };
+
+  // Dates that have at least one active appointment (shown as a dot on the calendar)
+  const appointmentDates = appointments
+    .filter(apt => apt.value.date && !['cancelled', 'Cancelled'].includes(apt.value.status))
+    .map(apt => {
+      const [y, m, d] = String(apt.value.date).split('-').map(Number);
+      return new Date(y, (m || 1) - 1, d || 1);
+    });
 
   const upcomingAppointments = appointments
     .filter(apt => {
@@ -417,8 +455,13 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
                 mode="single"
                 selected={selectedDate}
                 onSelect={setSelectedDate}
+                modifiers={{ hasAppointment: appointmentDates }}
+                modifiersClassNames={{ hasAppointment: 'vc-day-has-appt' }}
                 className="rounded-md border"
               />
+              <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                <span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Has appointment(s)
+              </div>
             </CardContent>
           </Card>
 
@@ -563,32 +606,36 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
                                 >
                                   Mark Complete
                                 </Button>
-                                {!apt.value.sms_1d_sent && (
-                                  <Button
+                                <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={() => handleSendManualSms(apt.key, '1d')}
                                     disabled={sendingSms === apt.key + '1d'}
                                   >
                                     {sendingSms === apt.key + '1d' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MessageSquare className="w-3 h-3 mr-1" />}
-                                    Send 1D
+                                    {apt.value.sms_1d_sent ? 'Resend 1D' : 'Send 1D'}
                                   </Button>
-                                )}
-                                {!apt.value.sms_sameday_sent && (
-                                  <Button
+                                <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={() => handleSendManualSms(apt.key, 'sameday')}
                                     disabled={sendingSms === apt.key + 'sameday'}
                                   >
                                     {sendingSms === apt.key + 'sameday' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MessageSquare className="w-3 h-3 mr-1" />}
-                                    Send Same-Day
+                                    {apt.value.sms_sameday_sent ? 'Resend Same-Day' : 'Send Same-Day'}
                                   </Button>
-                                )}
                               </>
                             )}
                           </div>
                           <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Message owner"
+                              onClick={() => openMessageOwner(owner, pet)}
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -629,6 +676,26 @@ export function AppointmentsManager({ accessToken }: AppointmentsManagerProps) {
           </CardContent>
         </Card>
       </div>
+      <Dialog open={!!smsTarget} onOpenChange={(o: boolean) => !o && setSmsTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><MessageSquare className="w-5 h-5 text-primary" /> Message Owner</DialogTitle>
+            <DialogDescription>
+              SMS to {smsTarget?.ownerName} ({smsTarget?.contact || 'no number on file'}) about {smsTarget?.petName}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea rows={5} value={smsText} maxLength={480} onChange={e => setSmsText(e.target.value)} placeholder="Type your message..." />
+            <div className="text-xs text-muted-foreground text-right">{smsText.length}/480 · {Math.max(1, Math.ceil(smsText.length / 160))} SMS credit(s)</div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setSmsTarget(null)} disabled={sendingCustom}>Cancel</Button>
+            <Button onClick={handleSendCustomSms} disabled={sendingCustom || !smsText.trim() || !smsTarget?.contact}>
+              {sendingCustom ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />} Send SMS
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
