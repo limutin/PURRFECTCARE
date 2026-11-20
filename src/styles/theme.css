@@ -1,0 +1,479 @@
+/* =====================================================================
+   PURRFECTCARE — Design system (loaded after dashboard.css)
+   A calm, clinical look: neutral surfaces, one brand green, consistent
+   radii/spacing, no decorative gradients. Overrides earlier rules.
+   ===================================================================== */
+
+:root {
+  --pc-brand-900: #0b3b2e;
+  --pc-brand-800: #0f4a3a;
+  --pc-brand-700: #13614b;
+  --pc-brand-600: #15803d;
+  --pc-brand-500: #16a34a;
+  --pc-brand-100: #dcfce7;
+  --pc-brand-50: #f0fdf4;
+
+  --pc-bg: #f5f7f8;
+  --pc-surface: #ffffff;
+  --pc-border: #e3e7eb;
+  --pc-border-strong: #cfd5db;
+  --pc-text: #0f172a;
+  --pc-text-2: #475569;
+  --pc-text-3: #94a3b8;
+
+  --pc-radius-sm: 6px;
+  --pc-radius: 8px;
+  --pc-radius-lg: 12px;
+  --pc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --pc-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --pc-shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.12);
+  --pc-focus: 0 0 0 3px rgba(22, 163, 74, 0.18);
+
+  /* Align shadcn tokens with the palette */
+  --primary: var(--pc-brand-600);
+  --ring: var(--pc-brand-500);
+  --accent: var(--pc-brand-50);
+  --accent-foreground: var(--pc-brand-700);
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --border: var(--pc-border);
+  --input-background: #ffffff;
+  --radius: 0.5rem;
+}
+
+html, body {
+  background: var(--pc-bg);
+  color: var(--pc-text);
+}
+
+body {
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ---------- Sidebar ---------- */
+.vc-sidebar {
+  width: 248px;
+  min-width: 248px;
+  background: var(--pc-brand-900);
+  box-shadow: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.vc-sidebar-header {
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vc-sidebar-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--pc-radius);
+  background: #fff;
+  border: none;
+  overflow: hidden;
+}
+
+.vc-sidebar-brand-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.vc-sidebar-brand-role {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.vc-sidebar-nav {
+  padding: 0.75rem 0.75rem;
+  gap: 1px;
+}
+
+.vc-sidebar-section-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.38);
+  padding: 1rem 0.75rem 0.4rem;
+}
+
+.vc-nav-item {
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--pc-radius-sm);
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.vc-nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.vc-nav-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  box-shadow: none;
+}
+
+.vc-nav-item.active::before {
+  left: -0.75rem;
+  width: 3px;
+  height: 70%;
+  background: #4ade80;
+  border-radius: 0 3px 3px 0;
+}
+
+.vc-nav-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.vc-nav-item:focus-visible,
+.vc-logout-btn:focus-visible {
+  outline: 2px solid #4ade80;
+  outline-offset: 1px;
+}
+
+.vc-sidebar-footer {
+  padding: 0.875rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vc-sidebar-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  background: var(--pc-brand-700);
+  color: #fff;
+  font-size: 0.75rem;
+}
+
+.vc-logout-btn {
+  justify-content: center;
+  border-radius: var(--pc-radius-sm);
+  padding: 0.45rem 0.75rem;
+}
+
+/* ---------- Main area & top header ---------- */
+.vc-main {
+  background: var(--pc-bg);
+}
+
+.vc-main-header {
+  height: 60px;
+  padding: 0 2rem;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--pc-border);
+}
+
+.vc-main-header h1 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--pc-text);
+  letter-spacing: -0.01em;
+}
+
+.vc-main-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vc-main-header-date {
+  font-size: 0.8rem;
+  color: var(--pc-text-2);
+}
+
+.vc-main-header-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pc-brand-700);
+  background: var(--pc-brand-50);
+  border: 1px solid var(--pc-brand-100);
+  border-radius: var(--pc-radius-sm);
+  padding: 0.2rem 0.55rem;
+}
+
+.vc-main-content {
+  padding: 1.75rem 2rem 2.5rem;
+  max-width: 1440px;
+}
+
+/* Pages wrap themselves in p-6; the shell already pads, so remove the double padding */
+.vc-main-content > .p-6 {
+  padding: 0;
+}
+
+/* Page titles inside content: consistent, restrained */
+.vc-main-content h1.text-3xl,
+.vc-main-content h1.text-2xl {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--pc-text);
+  line-height: 1.25;
+}
+
+.vc-main-content h1 + p {
+  color: var(--pc-text-2);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* ---------- Cards ---------- */
+.vc-main [data-slot="card"],
+.vc-owner-main [data-slot="card"] {
+  border-radius: var(--pc-radius-lg);
+  border: 1px solid var(--pc-border);
+  background: var(--pc-surface);
+  box-shadow: var(--pc-shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Static cards don't lift; only clickable cards respond to hover */
+.vc-main [data-slot="card"]:hover,
+.vc-owner-main [data-slot="card"]:hover {
+  box-shadow: var(--pc-shadow-sm);
+}
+
+.vc-main [data-slot="card"].cursor-pointer:hover,
+.vc-owner-main [data-slot="card"].cursor-pointer:hover {
+  border-color: var(--pc-border-strong);
+  box-shadow: var(--pc-shadow);
+}
+
+/* Heavy decorative shadows used on some pages → standard elevation */
+.vc-main [data-slot="card"].shadow-xl,
+.vc-main [data-slot="card"].shadow-lg,
+.vc-main [data-slot="card"].shadow-premium {
+  box-shadow: var(--pc-shadow-sm);
+}
+
+/* "border-none" cards still get a hairline so surfaces read clearly */
+.vc-main [data-slot="card"].border-none {
+  border: 1px solid var(--pc-border) !important;
+}
+
+[data-slot="card-title"] {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--pc-text);
+  letter-spacing: -0.01em;
+}
+
+[data-slot="card-description"] {
+  color: var(--pc-text-2);
+  font-size: 0.82rem;
+}
+
+/* ---------- Form controls ---------- */
+[data-slot="input"],
+[data-slot="textarea"],
+[data-slot="select-trigger"] {
+  background: #fff !important;
+  border: 1px solid var(--pc-border-strong) !important;
+  border-radius: var(--pc-radius-sm) !important;
+  box-shadow: none !important;
+  font-size: 0.875rem;
+  color: var(--pc-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+[data-slot="input"]::placeholder,
+[data-slot="textarea"]::placeholder {
+  color: var(--pc-text-3);
+}
+
+[data-slot="input"]:hover,
+[data-slot="textarea"]:hover,
+[data-slot="select-trigger"]:hover {
+  border-color: #b4bcc6 !important;
+}
+
+[data-slot="input"]:focus-visible,
+[data-slot="textarea"]:focus-visible,
+[data-slot="select-trigger"]:focus-visible,
+[data-slot="select-trigger"][data-state="open"] {
+  border-color: var(--pc-brand-500) !important;
+  box-shadow: var(--pc-focus) !important;
+  outline: none;
+}
+
+[data-slot="input"][disabled],
+[data-slot="select-trigger"][disabled] {
+  background: #f8fafc !important;
+  color: var(--pc-text-2);
+}
+
+label[data-slot="label"] {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+/* ---------- Buttons ---------- */
+[data-slot="button"] {
+  border-radius: var(--pc-radius-sm);
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 0;
+}
+
+[data-slot="button"].shadow-lg,
+[data-slot="button"].shadow-sm {
+  box-shadow: var(--pc-shadow-sm);
+}
+
+[data-slot="button"]:focus-visible {
+  box-shadow: var(--pc-focus);
+  outline: none;
+}
+
+/* ---------- Tables ---------- */
+[data-slot="table-container"] {
+  border-radius: inherit;
+}
+
+[data-slot="table-header"] {
+  background: #f8fafc;
+}
+
+[data-slot="table-head"] {
+  height: 40px;
+  font-size: 0.72rem;
+  font-weight: 600 !important;
+  color: var(--pc-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+[data-slot="table-row"] {
+  border-color: #eef1f4;
+}
+
+[data-slot="table-body"] [data-slot="table-row"]:hover {
+  background: #f8fafc;
+}
+
+[data-slot="table-cell"] {
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+  color: #1e293b;
+}
+
+/* ---------- Badges ---------- */
+[data-slot="badge"] {
+  border-radius: 9999px;
+  font-weight: 500;
+  font-size: 0.72rem;
+  padding: 0.12rem 0.55rem;
+}
+
+/* ---------- Dialogs ---------- */
+[data-slot="dialog-overlay"] {
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+[data-slot="dialog-content"] {
+  border-radius: var(--pc-radius-lg);
+  border: 1px solid var(--pc-border);
+  box-shadow: var(--pc-shadow-lg);
+}
+
+[data-slot="dialog-title"] {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--pc-text);
+}
+
+[data-slot="dialog-description"] {
+  color: var(--pc-text-2);
+  font-size: 0.85rem;
+}
+
+/* ---------- Calendar ---------- */
+.rdp,
+.vc-main .rdp-month {
+  font-size: 0.85rem;
+}
+
+/* Scrollbars */
+.vc-main ::-webkit-scrollbar { width: 10px; height: 10px; }
+.vc-main ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+.vc-main ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 768px) {
+  .vc-main-header {
+    padding: 0 1rem;
+    height: 56px;
+  }
+
+  .vc-main-header-date {
+    display: none;
+  }
+
+  .vc-main-content {
+    padding: 1rem 1rem 88px;
+  }
+
+  /* Page header rows (title + actions) wrap instead of overflowing */
+  .vc-main-content > .p-6 > .flex.justify-between:first-child {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .vc-main-content > .p-6 > .flex.justify-between:first-child > :last-child {
+    width: 100%;
+  }
+
+  .vc-main-content > .p-6 > .flex.justify-between:first-child > :last-child [data-slot="button"] {
+    flex: 1 1 auto;
+  }
+
+  .vc-bottom-nav-item {
+    min-width: 76px;
+    padding: 0.4rem 0.35rem;
+  }
+
+  .vc-bottom-nav-item span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.66rem;
+  }
+
+  .vc-main-header h1 {
+    font-size: 1rem;
+  }
+
+  .vc-main-content h1.text-3xl,
+  .vc-main-content h1.text-2xl {
+    font-size: 1.25rem;
+  }
+
+  .vc-bottom-nav-item.active,
+  .vc-bottom-nav-item:hover {
+    color: var(--pc-brand-600);
+  }
+
+  .vc-bottom-nav-item.active .vc-nav-icon {
+    background: var(--pc-brand-50);
+    color: var(--pc-brand-600);
+  }
+}
+
+/* Quick, subtle page transition */
+.vc-animate-in {
+  animation: vc-fade-in 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vc-animate-in { animation: none; }
+}

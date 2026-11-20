@@ -150,7 +150,7 @@ export function RecordsViewer({ accessToken }: RecordsViewerProps) {
         </h1>
         <p className="text-muted-foreground">
           {selectedPetId
-            ? `Read-only view of patient findings and clinical history.`
+            ? `Vaccination history and clinical visit records for this patient.`
             : 'Select a patient to view their medical examination history.'}
         </p>
       </div>

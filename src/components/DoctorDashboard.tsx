@@ -152,6 +152,7 @@ export function DoctorDashboard({ user, accessToken, onLogout }: DoctorDashboard
             <h1>{getActiveLabel()}</h1>
           </div>
           <div className="vc-main-header-right">
+            <span className="vc-main-header-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
             <span className="vc-main-header-badge">Doctor</span>
             <AlertDialog>
               <AlertDialogTrigger asChild>

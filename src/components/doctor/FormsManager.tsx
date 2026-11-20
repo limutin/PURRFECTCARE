@@ -1092,17 +1092,6 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
                   Owner name and pet name are required.
                 </div>
               )}
-
-              {!walkInMode && !selectedPet && (
-                <div className="p-4 rounded-xl bg-background/50 border border-dashed border-primary/20 text-center space-y-2">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                    <Info className="w-5 h-5 text-primary" />
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Search by pet name or owner to unlock official forms
-                  </p>
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -1164,7 +1153,20 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
           </Card>
         )}
 
-        <Card className={`lg:col-span-2 border-none shadow-premium transition-all duration-500 overflow-hidden ${walkInMode ? 'hidden' : selectedPet ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none absolute lg:static'}`}>
+        <Card className={`lg:col-span-2 border-none shadow-premium transition-all duration-500 overflow-hidden ${walkInMode ? 'hidden' : ''}`}>
+          {!selectedPet && !walkInMode && (
+            <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center p-8 gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                <PawPrint className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">No patient selected</p>
+                <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                  Search for a registered patient on the left, or switch to Walk-in to enter details manually. The forms below unlock once a patient is chosen.
+                </p>
+              </div>
+            </div>
+          )}
           {selectedPet && !walkInMode && (
             <div className="h-full flex flex-col">
               <div className="px-6 py-4 bg-muted/30 border-b border-muted flex items-center justify-between">
@@ -1251,23 +1253,22 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <Dialog open={showVhcDialog} onOpenChange={(open: boolean) => { setShowVhcDialog(open); if (open) loadNextControlNo(); }}>
-          <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary">
-            <div className={`absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-green-50 text-green-700`}></div>
+          <Card className="group relative overflow-hidden transition-colors hover:border-primary/40">
             <CardHeader className="pb-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-green-50 text-green-700 border-green-200`}>
-                <FileText className="w-6 h-6" />
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 border bg-green-50 text-green-700 border-green-200`}>
+                <FileText className="w-5 h-5" />
               </div>
-              <CardTitle className="text-xl font-bold">Health Certificate</CardTitle>
+              <CardTitle className="text-base font-semibold">Health Certificate</CardTitle>
               <CardDescription className="leading-relaxed min-h-[60px]">Official Veterinary Health Certificate (VHC) for travel, transport, or general health clearance.</CardDescription>
             </CardHeader>
             <CardContent>
               <DialogTrigger asChild>
                 <Button
                   disabled={!hasSubject}
-                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                  className="w-full h-10 font-medium"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
-                  Generate VHC
+                  Generate certificate
                 </Button>
               </DialogTrigger>
             </CardContent>
@@ -1330,7 +1331,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowVhcDialog(false)}>Cancel</Button>
               <Button onClick={() => { generateVHC(); setShowVhcDialog(false); }}>
-                Generate Document
+                Generate document
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1359,23 +1360,22 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             color: 'bg-teal-50 text-teal-700 border-teal-200'
           }
         ].map((form) => (
-          <Card key={form.id} className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary">
-            <div className={`absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 ${form.color.split(' ')[0]}`}></div>
+          <Card key={form.id} className="group relative overflow-hidden transition-colors hover:border-primary/40">
             <CardHeader className="pb-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 border ${form.color}`}>
-                <FileText className="w-6 h-6" />
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 border ${form.color}`}>
+                <FileText className="w-5 h-5" />
               </div>
-              <CardTitle className="text-xl font-bold">{form.title}</CardTitle>
+              <CardTitle className="text-base font-semibold">{form.title}</CardTitle>
               <CardDescription className="leading-relaxed min-h-[60px]">{form.desc}</CardDescription>
             </CardHeader>
             <CardContent>
               <Button
                 onClick={form.action}
                 disabled={!hasSubject}
-                className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                className="w-full h-10 font-medium"
               >
                 <FilePlus className="w-4 h-4 mr-2" />
-                Generate {form.id.toUpperCase()}
+                Generate form
               </Button>
             </CardContent>
           </Card>
@@ -1383,22 +1383,21 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
 
         <Dialog open={showConfinementDialog} onOpenChange={setShowConfinementDialog}>
           <DialogTrigger asChild>
-            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-indigo-100">
-              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-indigo-200"></div>
+            <Card className="group relative overflow-hidden transition-colors hover:border-primary/40 border-indigo-100">
               <CardHeader className="pb-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-indigo-50 text-indigo-700 border-indigo-200">
-                  <FileText className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 border bg-indigo-50 text-indigo-700 border-indigo-200">
+                  <FileText className="w-5 h-5" />
                 </div>
-                <CardTitle className="text-xl font-bold">Consent for Confinement</CardTitle>
+                <CardTitle className="text-base font-semibold">Consent for Confinement</CardTitle>
                 <CardDescription className="leading-relaxed min-h-[60px]">Official consent for pet confinement, documenting treatment estimates and owner responsibilities.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button 
                   disabled={!hasSubject}
-                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                  className="w-full h-10 font-medium"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
-                  Generate CONFINEMENT
+                  Generate form
                 </Button>
               </CardContent>
             </Card>
@@ -1434,7 +1433,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowConfinementDialog(false)}>Cancel</Button>
               <Button onClick={() => { generateConfinement(); setShowConfinementDialog(false); }}>
-                Generate PDF
+                Generate document
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1442,22 +1441,21 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
 
         <Dialog open={showSurgeryDialog} onOpenChange={setShowSurgeryDialog}>
           <DialogTrigger asChild>
-            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-blue-100">
-              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-blue-200"></div>
+            <Card className="group relative overflow-hidden transition-colors hover:border-primary/40 border-blue-100">
               <CardHeader className="pb-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-blue-50 text-blue-700 border-blue-200">
-                  <FileText className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 border bg-blue-50 text-blue-700 border-blue-200">
+                  <FileText className="w-5 h-5" />
                 </div>
-                <CardTitle className="text-xl font-bold">Consent for Surgery</CardTitle>
+                <CardTitle className="text-base font-semibold">Consent for Surgery</CardTitle>
                 <CardDescription className="leading-relaxed min-h-[60px]">Official consent for surgical procedures, documenting risks, costs, and owner authorization.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button 
                   disabled={!hasSubject}
-                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                  className="w-full h-10 font-medium"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
-                  Generate SURGERY
+                  Generate form
                 </Button>
               </CardContent>
             </Card>
@@ -1542,7 +1540,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowSurgeryDialog(false)}>Cancel</Button>
               <Button onClick={() => { generateSurgery(); setShowSurgeryDialog(false); }}>
-                Generate PDF
+                Generate document
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1550,22 +1548,21 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
 
         <Dialog open={showPromissoryDialog} onOpenChange={setShowPromissoryDialog}>
           <DialogTrigger asChild>
-            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-amber-100">
-              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-amber-200"></div>
+            <Card className="group relative overflow-hidden transition-colors hover:border-primary/40 border-amber-100">
               <CardHeader className="pb-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-amber-50 text-amber-700 border-amber-200">
-                  <FileText className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 border bg-amber-50 text-amber-700 border-amber-200">
+                  <FileText className="w-5 h-5" />
                 </div>
-                <CardTitle className="text-xl font-bold">Promissory Note</CardTitle>
+                <CardTitle className="text-base font-semibold">Promissory Note</CardTitle>
                 <CardDescription className="leading-relaxed min-h-[60px]">Official payment commitment form documenting the owner's promise to settle outstanding balances.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button
                   disabled={!hasSubject}
-                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                  className="w-full h-10 font-medium"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
-                  Generate PROMISSORY
+                  Generate form
                 </Button>
               </CardContent>
             </Card>
@@ -1645,7 +1642,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowPromissoryDialog(false)}>Cancel</Button>
               <Button onClick={() => { generatePromissory(); setShowPromissoryDialog(false); }}>
-                Generate PDF
+                Generate document
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1654,22 +1651,21 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         {/* Authorization Dialog */}
         <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
           <DialogTrigger asChild>
-            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-pink-100">
-              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-pink-200"></div>
+            <Card className="group relative overflow-hidden transition-colors hover:border-primary/40 border-pink-100">
               <CardHeader className="pb-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-pink-50 text-pink-700 border-pink-200">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 border bg-pink-50 text-pink-700 border-pink-200">
                   <Activity className="w-6 h-6" />
                 </div>
-                <CardTitle className="text-xl font-bold">Authorization Form</CardTitle>
+                <CardTitle className="text-base font-semibold">Authorization Form</CardTitle>
                 <CardDescription className="leading-relaxed min-h-[60px]">Official medical authorization form for Treatments, Vaccinations, and Medical Tests.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button 
                   disabled={!hasSubject}
-                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                  className="w-full h-10 font-medium"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
-                  Generate AUTHORIZATION
+                  Generate form
                 </Button>
               </CardContent>
             </Card>
@@ -1705,7 +1701,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAuthDialog(false)}>Cancel</Button>
               <Button onClick={() => { generateAuthorization(); setShowAuthDialog(false); }}>
-                Generate PDF
+                Generate document
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1714,22 +1710,21 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         {/* Refusal Dialog */}
         <Dialog open={showRefusalDialog} onOpenChange={setShowRefusalDialog}>
           <DialogTrigger asChild>
-            <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary border-amber-100">
-              <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-amber-200"></div>
+            <Card className="group relative overflow-hidden transition-colors hover:border-primary/40 border-amber-100">
               <CardHeader className="pb-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 border bg-amber-50 text-amber-700 border-amber-200">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 border bg-amber-50 text-amber-700 border-amber-200">
                   <Activity className="w-6 h-6" />
                 </div>
-                <CardTitle className="text-xl font-bold">Refusal of Treatment</CardTitle>
+                <CardTitle className="text-base font-semibold">Refusal of Treatment</CardTitle>
                 <CardDescription className="leading-relaxed min-h-[60px]">Official medical form documenting the owner's refusal of optional treatments or medical tests.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button 
                   disabled={!hasSubject}
-                  className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
+                  className="w-full h-10 font-medium"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
-                  Generate REFUSAL
+                  Generate form
                 </Button>
               </CardContent>
             </Card>
@@ -1811,22 +1806,13 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
                 Cancel
               </Button>
               <Button onClick={() => { generateRefusal(); setShowRefusalDialog(false); }}>
-                Generate PDF
+                Generate document
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
       </div>
-
-      {
-        !hasSubject && (
-          <div className="text-center py-12 bg-muted/20 rounded-2xl border-2 border-dashed border-muted">
-            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <p className="text-muted-foreground font-medium">{walkInMode ? "Enter the owner and pet name above to unlock form generation" : "Please select a pet above, or switch to Walk-in, to unlock form generation"}</p>
-          </div>
-        )
-      }
     </div>
   );
 }

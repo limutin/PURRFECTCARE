@@ -234,7 +234,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-foreground mb-2">Inventory Management</h1>
-          <p className="text-muted-foreground">Manage medicines and medical supplies</p>
+          <p className="text-muted-foreground">Manage medicines, lab supplies and other stock</p>
         </div>
         <Dialog open={showAddDialog || !!editingItem} onOpenChange={(open: boolean) => {
           if (!open) {
@@ -245,7 +245,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
           <DialogTrigger asChild>
             <Button onClick={() => setShowAddDialog(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Add Medicine
+              Add Item
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
@@ -338,7 +338,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-center gap-3 animate-pulse">
           <AlertCircle className="w-5 h-5 text-orange-600" />
           <div className="text-sm text-orange-800">
-            <span className="font-bold">Attention:</span> {lowStockItems.length} items are running low on stock. Please restock soon.
+            <span className="font-bold">Attention:</span> {lowStockItems.length} {lowStockItems.length === 1 ? 'item is' : 'items are'} running low on stock. Please restock soon.
           </div>
         </div>
       )}
@@ -383,14 +383,14 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
 
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
             <div>
               <CardTitle>Inventory List</CardTitle>
               <CardDescription>All medicines and supplies in stock</CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-[150px] h-9">
+                <SelectTrigger className="w-full sm:w-[160px] h-9">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -411,7 +411,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
                 <span>Expiring Soon</span>
               </Button>
 
-              <div className="relative w-64">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search inventory..."

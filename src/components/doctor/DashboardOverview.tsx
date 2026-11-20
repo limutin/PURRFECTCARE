@@ -113,7 +113,7 @@ export function DashboardOverview({ accessToken, onNavigate }: DashboardOverview
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardHeader className="pb-2">
@@ -127,7 +127,7 @@ export function DashboardOverview({ accessToken, onNavigate }: DashboardOverview
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
           {statCards.map((card) => (
             <Card key={card.title}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
