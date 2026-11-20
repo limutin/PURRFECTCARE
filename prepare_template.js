@@ -96,7 +96,8 @@ xml = xml.replace(/(find\s+the\s+)(?:dog|cat)/gi, '$1{species_lower}');
 xml = xml.replace(/(vaccinated\s+the\s+above-described\s+)(?:dog|cat)/gi, '$1{species_lower}');
 
 // 4. DIFFERENTIATE CURRENT vs VACCINATION DATE
-xml = xml.replace(/(Rabies on.*?){current_date}/gs, '$1{vaccine_date}');
+xml = xml.replace(/(Rabies(?:(?!\{vaccine_date\}|\{current_date\})[\s\S])*?)\{current_date\}/g, '$1{vaccine_date}');
+xml = xml.replace(/(above-described(?:\s|<[^>]+>)*)(?:dog|cat)\b/gi, '$1{species_lower}');
 
 zip.file('word/document.xml', xml);
 fs.writeFileSync(outputPath, zip.generate({ type: 'nodebuffer' }));

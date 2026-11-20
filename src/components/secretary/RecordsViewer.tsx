@@ -10,6 +10,7 @@ import { Skeleton } from '../ui/skeleton';
 import { Dialog, DialogContent } from '../ui/dialog';
 import { Search, Eye, Printer, PawPrint, User, ArrowLeft, History, FileText, Scale, Thermometer, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { PetHistoryPanel } from '../shared/PetHistoryPanel';
 
 interface RecordsViewerProps {
   accessToken: string;
@@ -197,6 +198,8 @@ export function RecordsViewer({ accessToken }: RecordsViewerProps) {
           </CardContent>
         </Card>
       ) : (
+        <>
+        <PetHistoryPanel accessToken={accessToken} petId={selectedPetId} diagnoses={petHistory} />
         <Card className="border-none shadow-xl">
           <CardHeader className="border-b bg-muted/20 pb-4">
             <div className="flex justify-between items-center">
@@ -234,6 +237,7 @@ export function RecordsViewer({ accessToken }: RecordsViewerProps) {
             </Table>
           </CardContent>
         </Card>
+        </>
       )}
 
       {/* Detail Viewer */}

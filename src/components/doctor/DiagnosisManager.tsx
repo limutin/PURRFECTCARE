@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getFunctionUrl, publicAnonKey } from '../../utils/supabase/info';
-import { formatDate } from '../../utils/formatDate';
+import { formatDate, todayLocal } from '../../utils/formatDate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -13,9 +13,10 @@ import { Skeleton } from '../ui/skeleton';
 import {
   Plus, FileText, Printer, Search, Eye, Trash2, Scale,
   Thermometer, ShieldCheck, Beaker, MessageSquare, Loader2,
-  Calendar as CalendarIcon, Pill, Trash, PawPrint, User, ArrowLeft, History
+  Calendar as CalendarIcon, Pill, Trash, PawPrint, User, ArrowLeft, History, Pencil
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PetHistoryPanel } from '../shared/PetHistoryPanel';
 
 interface DiagnosisManagerProps {
   accessToken: string;
@@ -33,12 +34,13 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
   const [viewingDiagnosis, setViewingDiagnosis] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const [editingDiagnosis, setEditingDiagnosis] = useState<any>(null);
 
 
   // Form states
   const [petId, setPetId] = useState('');
   const [vaccination, setVaccination] = useState('');
-  const [diagnosisDate, setDiagnosisDate] = useState(new Date().toISOString().split('T')[0]);
+  const [diagnosisDate, setDiagnosisDate] = useState(todayLocal());
   const [weight, setWeight] = useState('');
   const [temperature, setTemperature] = useState('');
   const [test, setTest] = useState('');
@@ -87,9 +89,10 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
   const handleAddDiagnosis = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const isEdit = !!editingDiagnosis;
     try {
-      const response = await fetch(getFunctionUrl('/diagnoses'), {
-        method: 'POST',
+      const response = await fetch(getFunctionUrl(isEdit ? `/diagnoses/${encodeURIComponent(editingDiagnosis.key)}` : '/diagnoses'), {
+        method: isEdit ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
@@ -105,14 +108,19 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
           dx,
           rx,
           remarks,
-          follow_up_date: followUpDate || undefined,
+          follow_up_date: followUpDate || null,
           medications: selectedMeds,
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to save');
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save');
+      }
 
-      if (followUpDate) {
+      // Only book a follow-up appointment when it's new or the date changed
+      const followUpChanged = !isEdit || (editingDiagnosis.value.follow_up_date || '') !== followUpDate;
+      if (followUpDate && followUpChanged) {
         await fetch(getFunctionUrl('/appointments'), {
           method: 'POST',
           headers: {
@@ -130,12 +138,12 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
         });
       }
 
-      toast.success('Medical record saved!');
+      toast.success(isEdit ? 'Medical record updated!' : 'Medical record saved!');
       setShowAddDialog(false);
       resetForm();
       fetchData();
-    } catch (error) {
-      toast.error('Error saving diagnosis');
+    } catch (error: any) {
+      toast.error((isEdit ? 'Error updating record: ' : 'Error saving diagnosis: ') + (error?.message || ''));
     } finally {
       setSaving(false);
     }
@@ -165,10 +173,37 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
     }
   };
 
+  const openEditDiagnosis = (d: any) => {
+    const v = d.value;
+    setEditingDiagnosis(d);
+    setPetId(v.pet_id || '');
+    setVaccination(v.vaccination || '');
+    setDiagnosisDate(v.date || todayLocal());
+    setWeight(v.weight != null && v.weight !== 0 ? String(v.weight) : '');
+    setTemperature(v.temperature != null && v.temperature !== 0 ? String(v.temperature) : '');
+    setTest(v.test || '');
+    setDx(v.dx || '');
+    setRx(v.rx || '');
+    setRemarks(v.remarks || '');
+    setFollowUpDate(v.follow_up_date || '');
+    setSelectedMeds((v.medications || []).map((m: any) => {
+      const inv = inventory.find(i => i.key === m.inventory_id);
+      return {
+        inventory_id: m.inventory_id,
+        name: m.name || inv?.value.name || 'Unknown Item',
+        price: m.price ?? inv?.value.price ?? 0,
+        quantity: m.quantity,
+      };
+    }).filter((m: any) => m.inventory_id));
+    setViewingDiagnosis(null);
+    setShowAddDialog(true);
+  };
+
   const resetForm = () => {
+    setEditingDiagnosis(null);
     setPetId('');
     setVaccination('');
-    setDiagnosisDate(new Date().toISOString().split('T')[0]);
+    setDiagnosisDate(todayLocal());
     setWeight('');
     setTemperature('');
     setTest('');
@@ -619,24 +654,24 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
           </p>
         </div>
         <div className="flex gap-3">
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <Dialog open={showAddDialog} onOpenChange={(open: boolean) => { setShowAddDialog(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 h-11 px-6 font-bold shadow-lg shadow-primary/20" onClick={() => { if (selectedPetId) setPetId(selectedPetId); }}>
+              <Button className="bg-primary hover:bg-primary/90 h-11 px-6 font-bold shadow-lg shadow-primary/20" onClick={() => { resetForm(); if (selectedPetId) setPetId(selectedPetId); }}>
                 <Plus className="w-5 h-5 mr-2" /> New Entry
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-primary">
-                  <FileText className="w-6 h-6" /> New Medical Entry
+                  <FileText className="w-6 h-6" /> {editingDiagnosis ? 'Edit Medical Entry' : 'New Medical Entry'}
                 </DialogTitle>
-                <DialogDescription>Fill out the clinical findings for this patient visit.</DialogDescription>
+                <DialogDescription>{editingDiagnosis ? 'Update the clinical findings for this visit.' : 'Fill out the clinical findings for this patient visit.'}</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAddDiagnosis} className="space-y-6 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="font-bold">Patient *</Label>
-                    <Select value={petId} onValueChange={setPetId} required>
+                    <Select value={petId} onValueChange={setPetId} required disabled={!!editingDiagnosis}>
                       <SelectTrigger className="h-11">
                         <SelectValue placeholder="Select patient" />
                       </SelectTrigger>
@@ -722,6 +757,11 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
                   )}
                 </div>
 
+                <div className="space-y-2">
+                  <Label className="font-bold text-amber-600">Clinical Remarks</Label>
+                  <Textarea value={remarks} onChange={e => setRemarks(e.target.value)} className="min-h-[70px] border-amber-100 bg-amber-50/20" placeholder="Additional notes, observations, owner instructions..." />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label className="font-bold">Lab Tests</Label><Input value={test} onChange={e => setTest(e.target.value)} placeholder="Laboratory reports..." /></div>
                   <div className="space-y-2">
@@ -732,7 +772,7 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
 
                 <div className="flex border-t pt-6 gap-3 justify-end">
                   <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)} disabled={saving}>Cancel</Button>
-                  <Button type="submit" className="bg-primary min-w-[120px]" disabled={saving}>{saving ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : 'Save Record'}</Button>
+                  <Button type="submit" className="bg-primary min-w-[120px]" disabled={saving}>{saving ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : editingDiagnosis ? 'Save Changes' : 'Save Record'}</Button>
                 </div>
               </form>
             </DialogContent>
@@ -782,6 +822,8 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
           </CardContent>
         </Card>
       ) : (
+        <>
+        <PetHistoryPanel accessToken={accessToken} petId={selectedPetId} diagnoses={petHistory} />
         <Card className="border-none shadow-xl">
           <CardHeader className="border-b bg-muted/20 pb-4">
             <div className="flex justify-between items-center">
@@ -811,7 +853,8 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => setViewingDiagnosis(d)} className="h-8 w-8 hover:bg-primary/20 hover:text-primary"><Eye className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handlePrint(d)} className="h-8 w-8 hover:bg-blue-100 hover:text-blue-600"><Printer className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Edit" onClick={() => openEditDiagnosis(d)} className="h-8 w-8 hover:bg-amber-100 hover:text-amber-600"><Pencil className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Print" onClick={() => handlePrint(d)} className="h-8 w-8 hover:bg-blue-100 hover:text-blue-600"><Printer className="w-4 h-4" /></Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -834,6 +877,7 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
             </Table>
           </CardContent>
         </Card>
+        </>
       )}
 
       {/* Detail Viewer */}
@@ -939,7 +983,10 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
                 </div>
               </div>
 
-              <div className="p-6 border-t bg-muted/10 flex justify-end items-center">
+              <div className="p-6 border-t bg-muted/10 flex justify-end items-center gap-3">
+                <Button variant="outline" className="h-11 px-6 font-bold border-2" onClick={() => openEditDiagnosis(viewingDiagnosis)}>
+                  <Pencil className="w-5 h-5 mr-2" /> Edit
+                </Button>
                 <Button variant="outline" className="h-11 px-6 font-bold border-2" onClick={() => handlePrint(viewingDiagnosis)}>
                   <Printer className="w-5 h-5 mr-2" /> Print Record
                 </Button>

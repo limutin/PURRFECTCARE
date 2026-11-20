@@ -577,3 +577,19 @@ body {
         color: #059669;
     }
 }
+/* Calendar: red dot under days that have appointments */
+.vc-day-has-appt {
+  position: relative;
+  font-weight: 700;
+}
+.vc-day-has-appt::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #ef4444;
+}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { projectId, publicAnonKey, getFunctionUrl } from '../../utils/supabase/info';
-import { formatDate } from '../../utils/formatDate';
+import { formatDate, todayLocal } from '../../utils/formatDate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -36,6 +36,41 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   const [loading, setLoading] = useState(true);
   const [selectedPet, setSelectedPet] = useState('');
   const [petSearch, setPetSearch] = useState('');
+
+  // Walk-in (unregistered) client mode
+  const [walkInMode, setWalkInMode] = useState(false);
+  const [walkIn, setWalkIn] = useState({
+    owner_name: '', owner_address: '', owner_contact: '', owner_email: '',
+    pet_name: '', type: 'Dog', breed: '', color: '', sex: 'male', birthday: '', weight: '',
+  });
+  const updateWalkIn = (field: keyof typeof walkIn, value: string) =>
+    setWalkIn(prev => ({ ...prev, [field]: value }));
+
+  // Returns the pet/owner the form is being generated for (registered or walk-in)
+  const getSubject = (): { pet: any; owner: any } | null => {
+    if (walkInMode) {
+      if (!walkIn.pet_name.trim() || !walkIn.owner_name.trim()) return null;
+      return {
+        pet: {
+          value: {
+            id: 'walk-in', name: walkIn.pet_name.trim(), type: walkIn.type || 'Dog', breed: walkIn.breed,
+            color: walkIn.color, sex: walkIn.sex, birthday: walkIn.birthday || null, weight: walkIn.weight,
+          },
+        },
+        owner: {
+          value: {
+            name: walkIn.owner_name.trim(), address: walkIn.owner_address,
+            contact: walkIn.owner_contact, email: walkIn.owner_email,
+          },
+        },
+      };
+    }
+    const pet = pets.find(p => p.value.id === selectedPet);
+    if (!pet) return null;
+    const owner = owners.find(o => o.value.id === pet.value.owner_id);
+    return { pet, owner };
+  };
+  const hasSubject = !!getSubject();
 
   useEffect(() => {
     fetchData();
@@ -212,8 +247,54 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   const [vhcControlNo, setVhcControlNo] = useState('');
   const [vhcDestination, setVhcDestination] = useState('');
   const [vhcVaccineUsed, setVhcVaccineUsed] = useState('Rabies Vaccine');
-  const [vhcVaccineDate, setVhcVaccineDate] = useState(new Date().toISOString().split('T')[0]);
+  const [vhcVaccineDate, setVhcVaccineDate] = useState(todayLocal());
   const [showVhcDialog, setShowVhcDialog] = useState(false);
+  const [loadingControlNo, setLoadingControlNo] = useState(false);
+
+  // Increments the trailing number of a control no. ("2026-007" -> "2026-008").
+  // Starts a fresh sequence when the year changes.
+  const incrementControlNo = (last: string | null) => {
+    const year = String(new Date().getFullYear());
+    if (!last) return `${year}-001`;
+    const m = last.match(/^(.*?)(\d+)$/);
+    if (!m) return `${year}-001`;
+    if (/^\d{4}-$/.test(m[1]) && m[1] !== `${year}-`) return `${year}-001`;
+    return `${m[1]}${String(parseInt(m[2], 10) + 1).padStart(m[2].length, '0')}`;
+  };
+
+  const LAST_CONTROL_KEY = 'purrfectcare_last_vhc_control_no';
+  const readLocalControl = () => { try { return localStorage.getItem(LAST_CONTROL_KEY); } catch { return null; } };
+
+  const loadNextControlNo = async () => {
+    setLoadingControlNo(true);
+    let last: string | null = null;
+    try {
+      const res = await fetch(getFunctionUrl('/vhc/last-control'), {
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'apikey': publicAnonKey },
+      });
+      if (res.ok) last = (await res.json()).control_no || null;
+    } catch { /* fall back to this device's last number */ }
+    const local = readLocalControl();
+    // Prefer whichever is further along (server is shared, local covers offline use)
+    if (!last || (local && local.localeCompare(last, undefined, { numeric: true }) > 0)) last = local;
+    setVhcControlNo(incrementControlNo(last));
+    setLoadingControlNo(false);
+  };
+
+  const recordIssuedVhc = async (controlNo: string, petId: string | null, petName: string, ownerName: string) => {
+    if (!controlNo) return;
+    try { localStorage.setItem(LAST_CONTROL_KEY, controlNo); } catch { /* ignore */ }
+    try {
+      await fetch(getFunctionUrl('/vhc'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}`, 'apikey': publicAnonKey },
+        body: JSON.stringify({
+          control_no: controlNo, pet_id: petId, pet_name: petName, owner_name: ownerName,
+          vaccine_used: vhcVaccineUsed, vaccine_date: vhcVaccineDate, destination: vhcDestination,
+        }),
+      });
+    } catch { /* non-blocking */ }
+  };
 
   // Confinement specific states
   const [confinementFirstDayCost, setConfinementFirstDayCost] = useState('2,000');
@@ -235,7 +316,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   const [promissoryBalance, setPromissoryBalance] = useState('');
   const [promissoryBalanceWords, setPromissoryBalanceWords] = useState('');
   const [promissoryService, setPromissoryService] = useState('');
-  const [promissoryServiceDate, setPromissoryServiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [promissoryServiceDate, setPromissoryServiceDate] = useState(todayLocal());
   const [promissoryPaymentDate, setPromissoryPaymentDate] = useState('');
   const [promissoryContactNumber, setPromissoryContactNumber] = useState('');
   const [promissoryValidId, setPromissoryValidId] = useState('');
@@ -284,9 +365,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   }, [surgeryProcedure, surgeryCost, surgeryDeposit, surgeryMedication, surgeryLabTests, surgeryBalance]);
 
   const generateVHC = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
 
     // Calculate age
     let ageText = 'N/A';
@@ -339,10 +420,10 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
           destination: vhcDestination || '',
           pet_name: pet.value.name,
           species: pet.value.type,
-          species_lower: pet.value.type.toLowerCase(),
+          species_lower: (pet.value.type || '').toLowerCase(),
           breed: pet.value.breed || '',
           color: pet.value.color || '',
-          sex: pet.value.sex.toUpperCase(),
+          sex: (pet.value.sex || '').toUpperCase(),
           age: ageText,
           weight: pet.value.weight ? pet.value.weight + ' kg' : '',
           vaccine_date: formatDate(vhcVaccineDate),
@@ -369,6 +450,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
+        recordIssuedVhc(vhcControlNo, walkInMode ? null : pet.value.id, pet.value.name, owner?.value.name || '');
         toast.success("VHC Document generated successfully!");
       } catch (err: any) {
         console.error(err);
@@ -378,9 +460,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   };
 
   const generateEuthanasia = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
 
     if (!pet) return;
 
@@ -446,9 +528,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   };
 
   const generateWaiver = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
 
     if (!pet) return;
 
@@ -509,9 +591,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   };
 
   const generateGrooming = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
 
     if (!pet) return;
 
@@ -582,9 +664,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   };
 
   const generateConfinement = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
 
     if (!pet) return;
 
@@ -651,9 +733,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   };
 
   const generateSurgery = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
 
     if (!pet) return;
 
@@ -726,9 +808,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   };
 
   const generatePromissory = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
     if (!pet) return;
 
     toast.info('Preparing Promissory Note...');
@@ -792,9 +874,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   };
 
   const generateAuthorization = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
     if (!pet) return;
 
     toast.info('Preparing Authorization...');
@@ -848,9 +930,9 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
   };
 
   const generateRefusal = () => {
-    if (!selectedPet) return;
-    const pet = pets.find(p => p.value.id === selectedPet);
-    const owner = owners.find(o => o.value.id === pet?.value.owner_id);
+    const subject = getSubject();
+    if (!subject) { toast.error('Select a patient or complete the walk-in details first'); return; }
+    const { pet, owner } = subject;
     if (!pet) return;
 
     toast.info('Preparing Refusal Form...');
@@ -926,10 +1008,28 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
               <Search className="w-5 h-5 text-primary" />
               Patient Selection
             </CardTitle>
-            <CardDescription>Select a pet to start generating documents</CardDescription>
+            <CardDescription>Choose a registered patient, or fill in details for a walk-in client</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-background/70 border">
+                <button
+                  type="button"
+                  onClick={() => setWalkInMode(false)}
+                  className={`h-9 rounded-md text-sm font-semibold transition-colors ${!walkInMode ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Registered
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWalkInMode(true)}
+                  className={`h-9 rounded-md text-sm font-semibold transition-colors ${walkInMode ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Walk-in
+                </button>
+              </div>
+
+              {!walkInMode && (
               <div className="space-y-2 relative">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -984,8 +1084,16 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
                   </div>
                 )}
               </div>
+              )}
 
-              {!selectedPet && (
+              {walkInMode && (
+                <div className="p-4 rounded-xl bg-background/50 border border-dashed border-primary/20 text-xs text-muted-foreground leading-relaxed">
+                  Walk-in details are used only for the generated document and are <b>not saved</b> as a client record.
+                  Owner name and pet name are required.
+                </div>
+              )}
+
+              {!walkInMode && !selectedPet && (
                 <div className="p-4 rounded-xl bg-background/50 border border-dashed border-primary/20 text-center space-y-2">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
                     <Info className="w-5 h-5 text-primary" />
@@ -999,8 +1107,65 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
           </CardContent>
         </Card>
 
-        <Card className={`lg:col-span-2 border-none shadow-premium transition-all duration-500 overflow-hidden ${selectedPet ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none absolute lg:static'}`}>
-          {selectedPet && (
+        {walkInMode && (
+          <Card className="lg:col-span-2 border-none shadow-premium">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2"><User className="w-5 h-5 text-primary" /> Walk-in Client Details</CardTitle>
+              <CardDescription>Enter the details that should appear on the document.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Owner</Label>
+                  <Input placeholder="Owner full name *" value={walkIn.owner_name} onChange={e => updateWalkIn('owner_name', e.target.value)} />
+                  <Input placeholder="Address" value={walkIn.owner_address} onChange={e => updateWalkIn('owner_address', e.target.value)} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Contact no." value={walkIn.owner_contact} onChange={e => updateWalkIn('owner_contact', e.target.value)} />
+                    <Input placeholder="Email" type="email" value={walkIn.owner_email} onChange={e => updateWalkIn('owner_email', e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground block">Pet</Label>
+                  <Input placeholder="Pet name *" value={walkIn.pet_name} onChange={e => updateWalkIn('pet_name', e.target.value)} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={walkIn.type} onValueChange={v => updateWalkIn('type', v)}>
+                      <SelectTrigger><SelectValue placeholder="Species" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Dog">Dog</SelectItem>
+                        <SelectItem value="Cat">Cat</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={walkIn.sex} onValueChange={v => updateWalkIn('sex', v)}>
+                      <SelectTrigger><SelectValue placeholder="Sex" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Breed" value={walkIn.breed} onChange={e => updateWalkIn('breed', e.target.value)} />
+                    <Input placeholder="Color" value={walkIn.color} onChange={e => updateWalkIn('color', e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase">Birthday</span>
+                      <Input type="date" value={walkIn.birthday} onChange={e => updateWalkIn('birthday', e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase">Weight (kg)</span>
+                      <Input type="number" step="0.1" value={walkIn.weight} onChange={e => updateWalkIn('weight', e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className={`lg:col-span-2 border-none shadow-premium transition-all duration-500 overflow-hidden ${walkInMode ? 'hidden' : selectedPet ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none absolute lg:static'}`}>
+          {selectedPet && !walkInMode && (
             <div className="h-full flex flex-col">
               <div className="px-6 py-4 bg-muted/30 border-b border-muted flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1085,7 +1250,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <Dialog open={showVhcDialog} onOpenChange={setShowVhcDialog}>
+        <Dialog open={showVhcDialog} onOpenChange={(open: boolean) => { setShowVhcDialog(open); if (open) loadNextControlNo(); }}>
           <Card className="group relative overflow-hidden transition-all hover:shadow-xl hover:border-primary">
             <div className={`absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 bg-green-50 text-green-700`}></div>
             <CardHeader className="pb-4">
@@ -1098,7 +1263,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             <CardContent>
               <DialogTrigger asChild>
                 <Button
-                  disabled={!selectedPet}
+                  disabled={!hasSubject}
                   className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
@@ -1124,10 +1289,11 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
                     <Fingerprint className="w-3 h-3" /> Control No.
                   </Label>
                   <Input
-                    placeholder="e.g. 2024-001"
+                    placeholder={loadingControlNo ? "Loading..." : "e.g. 2026-001"}
                     value={vhcControlNo}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVhcControlNo(e.target.value)}
                   />
+                  <p className="text-[10px] text-muted-foreground">Auto-filled with the next number. Edit if needed.</p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
@@ -1164,7 +1330,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowVhcDialog(false)}>Cancel</Button>
               <Button onClick={() => { generateVHC(); setShowVhcDialog(false); }}>
-                Generate PDF
+                Generate Document
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1205,7 +1371,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
             <CardContent>
               <Button
                 onClick={form.action}
-                disabled={!selectedPet}
+                disabled={!hasSubject}
                 className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
               >
                 <FilePlus className="w-4 h-4 mr-2" />
@@ -1228,7 +1394,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
               </CardHeader>
               <CardContent>
                 <Button 
-                  disabled={!selectedPet}
+                  disabled={!hasSubject}
                   className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
@@ -1287,7 +1453,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
               </CardHeader>
               <CardContent>
                 <Button 
-                  disabled={!selectedPet}
+                  disabled={!hasSubject}
                   className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
@@ -1395,7 +1561,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
               </CardHeader>
               <CardContent>
                 <Button
-                  disabled={!selectedPet}
+                  disabled={!hasSubject}
                   className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
@@ -1499,7 +1665,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
               </CardHeader>
               <CardContent>
                 <Button 
-                  disabled={!selectedPet}
+                  disabled={!hasSubject}
                   className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
@@ -1559,7 +1725,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
               </CardHeader>
               <CardContent>
                 <Button 
-                  disabled={!selectedPet}
+                  disabled={!hasSubject}
                   className="w-full h-11 font-semibold shadow-sm transition-all active:scale-95"
                 >
                   <FilePlus className="w-4 h-4 mr-2" />
@@ -1654,10 +1820,10 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
       </div>
 
       {
-        !selectedPet && (
+        !hasSubject && (
           <div className="text-center py-12 bg-muted/20 rounded-2xl border-2 border-dashed border-muted">
             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <p className="text-muted-foreground font-medium">Please select a pet above to unlock form generation</p>
+            <p className="text-muted-foreground font-medium">{walkInMode ? "Enter the owner and pet name above to unlock form generation" : "Please select a pet above, or switch to Walk-in, to unlock form generation"}</p>
           </div>
         )
       }

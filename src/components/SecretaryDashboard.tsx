@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Heart, LayoutDashboard, Users, Calendar, FileText, Banknote, LogOut } from 'lucide-react';
+import { Heart, LayoutDashboard, Users, Calendar, FileText, Banknote, FilePlus, LogOut } from 'lucide-react';
 import { DashboardOverview } from './secretary/DashboardOverview';
 import { OwnersPetsManager } from './secretary/OwnersPetsManager';
 import { AppointmentsManager } from './secretary/AppointmentsManager';
 import { RecordsViewer } from './secretary/RecordsViewer';
-import { BillingViewer } from './secretary/BillingViewer';
+import { BillingManager } from './doctor/BillingManager';
+import { FormsManager } from './doctor/FormsManager';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 
 interface SecretaryDashboardProps {
@@ -22,6 +23,7 @@ export function SecretaryDashboard({ user, accessToken, onLogout }: SecretaryDas
     { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'records', label: 'Medical Records', icon: FileText },
     { id: 'billing', label: 'Billing', icon: Banknote },
+    { id: 'forms', label: 'Forms', icon: FilePlus },
   ];
 
   const renderContent = () => {
@@ -38,7 +40,9 @@ export function SecretaryDashboard({ user, accessToken, onLogout }: SecretaryDas
       case 'records':
         return <RecordsViewer accessToken={accessToken} />;
       case 'billing':
-        return <BillingViewer accessToken={accessToken} />;
+        return <BillingManager accessToken={accessToken} />;
+      case 'forms':
+        return <FormsManager accessToken={accessToken} />;
       default:
         return <DashboardOverview accessToken={accessToken} onNavigate={(tab) => {
           if (tab === 'diagnosis') setActiveTab('records');

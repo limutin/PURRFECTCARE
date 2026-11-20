@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { projectId } from '../../utils/supabase/info';
+import { todayLocal } from '../../utils/formatDate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Users, Calendar, Package, Banknote, AlertCircle } from 'lucide-react';
 
@@ -43,7 +44,7 @@ export function DashboardOverview({ accessToken, onNavigate }: DashboardOverview
       const inventory = await inventoryRes.json();
       const billing = await billingRes.json();
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = todayLocal();
       const todayAppointments = appointments.appointments?.filter((apt: any) =>
         apt.value.date?.startsWith(today)
       ).length || 0;
