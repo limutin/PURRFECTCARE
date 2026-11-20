@@ -129,7 +129,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           flex: 1;
           display: none;
           position: relative;
-          background: linear-gradient(135deg, #059669 0%, #047857 40%, #065f46 100%);
+          background: linear-gradient(135deg, #0d9488 0%, #0f766e 40%, #115e59 100%);
           overflow: hidden;
           padding: 3rem;
         }
@@ -150,8 +150,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           left: -50%;
           width: 200%;
           height: 200%;
-          background: radial-gradient(circle at 30% 70%, rgba(16, 185, 129, 0.3) 0%, transparent 50%),
-                      radial-gradient(circle at 70% 30%, rgba(5, 150, 105, 0.2) 0%, transparent 50%);
+          background: radial-gradient(circle at 30% 70%, rgba(20, 184, 166, 0.3) 0%, transparent 50%),
+                      radial-gradient(circle at 70% 30%, rgba(13, 148, 136, 0.2) 0%, transparent 50%);
           animation: float-bg 20s ease-in-out infinite;
         }
 
@@ -347,12 +347,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           width: 140px;
           height: 140px;
           border-radius: 32px;
-          background: linear-gradient(135deg, #059669, #10B981);
+          background: linear-gradient(135deg, #0d9488, #14b8a6);
           display: flex;
           align-items: center;
           justify-content: center;
           margin-bottom: 1rem;
-          box-shadow: 0 8px 24px rgba(5, 150, 105, 0.25);
+          box-shadow: 0 8px 24px rgba(13, 148, 136, 0.25);
         }
 
         .mobile-logo-title {
@@ -409,9 +409,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         }
 
         .login-page .form-input:focus {
-          border-color: #059669;
+          border-color: #0d9488;
           background: #fff;
-          box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+          box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
         }
 
         .login-page .form-input::placeholder {
@@ -451,7 +451,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           font-weight: 600;
           font-family: 'Inter', sans-serif;
           color: #fff;
-          background: linear-gradient(135deg, #059669 0%, #047857 100%);
+          background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
           cursor: pointer;
           transition: all 0.3s ease;
           display: flex;
@@ -459,12 +459,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           justify-content: center;
           gap: 0.5rem;
           margin-top: 0.5rem;
-          box-shadow: 0 4px 14px rgba(5, 150, 105, 0.25);
+          box-shadow: 0 4px 14px rgba(13, 148, 136, 0.25);
         }
 
         .login-page .submit-btn:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 6px 20px rgba(5, 150, 105, 0.35);
+          box-shadow: 0 6px 20px rgba(13, 148, 136, 0.35);
         }
 
         .login-page .submit-btn:active:not(:disabled) {
@@ -501,7 +501,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
         .login-page .tab-btn.active {
           background: #fff;
-          color: #059669;
+          color: #0d9488;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
         }
 
@@ -531,9 +531,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         }
 
         .login-page .form-select:focus {
-          border-color: #059669;
+          border-color: #0d9488;
           background-color: #fff;
-          box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+          box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
         }
 
         /* Divider */

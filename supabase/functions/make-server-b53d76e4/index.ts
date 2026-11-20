@@ -30,6 +30,37 @@ async function getAuthUser(c: Context) {
   return user;
 }
 
+// ============== SHARED HELPERS ============== //
+
+// Adds (positive) or removes (negative) stock atomically.
+async function adjustStock(inventoryId, delta) {
+  if (!inventoryId || !delta) return;
+  const { error } = await supabase.rpc('adjust_inventory', { p_id: inventoryId, p_delta: delta });
+  if (error) console.error(`Stock adjust failed for ${inventoryId}:`, error.message);
+}
+
+const decodeBase64 = (b64) => Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+
+// Today's date (YYYY-MM-DD) in Philippine time, optionally shifted by N days.
+function phtDate(offsetDays = 0) {
+  const d = new Date(Date.now() + offsetDays * 86400000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(d);
+}
+
+function phtHour() {
+  return Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
+}
+
+// Replaces stored photo paths with short-lived signed URLs.
+async function signPetPhotos(pets) {
+  const paths = pets.map(p => p.photo_url).filter(Boolean);
+  if (!paths.length) return pets;
+  const { data } = await supabase.storage.from('pet-photos').createSignedUrls(paths, 60 * 60);
+  const byPath = {};
+  for (const s of data || []) if (s.path && s.signedUrl) byPath[s.path] = s.signedUrl;
+  return pets.map(p => ({ ...p, photo_path: p.photo_url, photo_url: p.photo_url ? (byPath[p.photo_url] || null) : null }));
+}
+
 // ============== AUTH ============== //
 
 app.post("/make-server-b53d76e4/signup", async (c) => {
@@ -92,7 +123,53 @@ app.get("/make-server-b53d76e4/owners", async (c) => {
 
 app.get("/make-server-b53d76e4/pets", async (c) => {
   const { data } = await supabase.from('pets').select('*');
-  return c.json({ pets: (data || []).map(p => ({ key: p.id, value: p })) });
+  const pets = await signPetPhotos(data || []);
+  return c.json({ pets: pets.map(p => ({ key: p.id, value: p })) });
+});
+
+// Add another pet to an existing owner
+app.post("/make-server-b53d76e4/owners/:id/pets", async (c) => {
+  try {
+    const ownerId = c.req.param('id');
+    const pet = await c.req.json();
+    const petId = `pet:${Date.now()}`;
+    const { count } = await supabase.from('pets').select('*', { count: 'exact', head: true });
+    const petUid = `PET-${new Date().getFullYear()}-${String((count || 0) + 1).padStart(4, '0')}`;
+    const { error } = await supabase.from('pets').insert({
+      id: petId, owner_id: ownerId, pet_uid: petUid, name: pet.name, type: pet.type,
+      birthday: pet.birthday || null, breed: pet.breed, color: pet.color, sex: pet.sex,
+      weight: pet.weight || null, microchip: pet.microchip,
+    });
+    if (error) throw error;
+    return c.json({ message: "Created", petId });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// Upload / replace a pet's photo (base64, already resized by the browser)
+app.post("/make-server-b53d76e4/pets/:id/photo", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const petId = c.req.param('id');
+    const { content_base64, content_type } = await c.req.json();
+    if (!content_base64) throw new Error('content_base64 is required');
+    const bytes = decodeBase64(content_base64);
+    if (bytes.length > 2 * 1024 * 1024) throw new Error('Photo is too large (max 2 MB)');
+    const ext = content_type === 'image/png' ? 'png' : content_type === 'image/webp' ? 'webp' : 'jpg';
+    const path = `${petId.replace(/[^a-zA-Z0-9_-]/g, '_')}/${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from('pet-photos').upload(path, bytes, { contentType: content_type || 'image/jpeg', upsert: true });
+    if (upErr) throw upErr;
+    const { data: old } = await supabase.from('pets').select('photo_url').eq('id', petId).maybeSingle();
+    const { error } = await supabase.from('pets').update({ photo_url: path }).eq('id', petId);
+    if (error) throw error;
+    if (old?.photo_url) await supabase.storage.from('pet-photos').remove([old.photo_url]);
+    const { data: signed } = await supabase.storage.from('pet-photos').createSignedUrl(path, 60 * 60);
+    return c.json({ message: "Uploaded", photo_url: signed?.signedUrl || null });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
 });
 
 app.put("/make-server-b53d76e4/owners/:id", async (c) => {
@@ -109,6 +186,10 @@ app.put("/make-server-b53d76e4/owners/:id", async (c) => {
 app.put("/make-server-b53d76e4/pets/:id", async (c) => {
   try {
     const updates = await c.req.json();
+    // Photos are managed by the /photo endpoint; never overwrite the stored path with a signed URL
+    delete updates.photo_url;
+    delete updates.photo_path;
+    delete updates.id;
     const { error } = await supabase.from('pets').update(updates).eq('id', c.req.param('id'));
     if (error) throw error;
     return c.json({ message: "Updated" });
@@ -147,13 +228,15 @@ app.post("/make-server-b53d76e4/diagnoses", async (c) => {
     if (diagError) throw diagError;
 
     if (diagnosis.medications?.length) {
-      const meds = diagnosis.medications.map(m => ({
+      const meds = diagnosis.medications.filter(m => m.inventory_id).map(m => ({
         diagnosis_id: id,
         inventory_id: m.inventory_id,
-        quantity: m.quantity
+        quantity: m.quantity,
+        stock_deducted: true,
       }));
       const { error: medError } = await supabase.from('diagnosis_medications').insert(meds);
       if (medError) console.error("Medication save error:", medError);
+      else for (const m of meds) await adjustStock(m.inventory_id, -Number(m.quantity || 0));
     }
 
     return c.json({ message: "Diagnosis saved successfully", id });
@@ -197,16 +280,22 @@ app.put("/make-server-b53d76e4/diagnoses/:id", async (c) => {
     }).eq('id', id);
     if (updError) throw updError;
 
-    // Replace dispensed medications with the edited list
+    // Replace dispensed medications with the edited list: put previously
+    // deducted stock back, then take the new quantities out.
     if (Array.isArray(d.medications)) {
+      const { data: oldMeds } = await supabase.from('diagnosis_medications')
+        .select('inventory_id, quantity, stock_deducted').eq('diagnosis_id', id);
       const { error: delErr } = await supabase.from('diagnosis_medications').delete().eq('diagnosis_id', id);
       if (delErr) throw delErr;
+      for (const m of oldMeds || []) if (m.stock_deducted) await adjustStock(m.inventory_id, Number(m.quantity || 0));
+
       const meds = d.medications
         .filter(m => m.inventory_id)
-        .map(m => ({ diagnosis_id: id, inventory_id: m.inventory_id, quantity: m.quantity }));
+        .map(m => ({ diagnosis_id: id, inventory_id: m.inventory_id, quantity: m.quantity, stock_deducted: true }));
       if (meds.length) {
         const { error: medError } = await supabase.from('diagnosis_medications').insert(meds);
         if (medError) throw medError;
+        for (const m of meds) await adjustStock(m.inventory_id, -Number(m.quantity || 0));
       }
     }
 
@@ -218,8 +307,13 @@ app.put("/make-server-b53d76e4/diagnoses/:id", async (c) => {
 });
 
 app.delete("/make-server-b53d76e4/diagnoses/:id", async (c) => {
-  const { error } = await supabase.from('diagnoses').delete().eq('id', c.req.param('id'));
+  const id = c.req.param('id');
+  // Return dispensed stock before the medication rows are cascaded away
+  const { data: meds } = await supabase.from('diagnosis_medications')
+    .select('inventory_id, quantity, stock_deducted').eq('diagnosis_id', id);
+  const { error } = await supabase.from('diagnoses').delete().eq('id', id);
   if (error) return c.json({ error: error.message }, 500);
+  for (const m of meds || []) if (m.stock_deducted) await adjustStock(m.inventory_id, Number(m.quantity || 0));
   return c.json({ message: "Deleted" });
 });
 
@@ -260,7 +354,13 @@ app.post("/make-server-b53d76e4/pet-history", async (c) => {
 app.put("/make-server-b53d76e4/pet-history/:id", async (c) => {
   try {
     const body = await c.req.json();
-    const { error } = await supabase.from('pet_history').update(pickHistory(body)).eq('id', c.req.param('id'));
+    const updates = pickHistory(body);
+    // A changed due date needs a new reminder
+    if ('next_due_date' in updates) {
+      const { data: cur } = await supabase.from('pet_history').select('next_due_date').eq('id', c.req.param('id')).maybeSingle();
+      if ((cur?.next_due_date || null) !== (updates.next_due_date || null)) updates.reminder_sent = false;
+    }
+    const { error } = await supabase.from('pet_history').update(updates).eq('id', c.req.param('id'));
     if (error) throw error;
     return c.json({ message: "Updated" });
   } catch (e) {
@@ -307,7 +407,7 @@ app.post("/make-server-b53d76e4/inventory", async (c) => {
     const item = await c.req.json();
     const id = `inventory:${Date.now()}`;
     const { error } = await supabase.from('inventory').insert({
-      id, name: item.name, category: item.category, quantity: item.quantity, price: item.price, expiry_date: item.expiry_date
+      id, name: item.name, category: item.category, quantity: item.quantity, price: item.price, expiry_date: item.expiry_date || null, reorder_level: item.reorder_level ?? 5
     });
     if (error) throw error;
     return c.json({ message: "Created", id });
@@ -325,7 +425,7 @@ app.put("/make-server-b53d76e4/inventory/:id", async (c) => {
   try {
     const updates = await c.req.json();
     const { error } = await supabase.from('inventory').update({
-      name: updates.name, category: updates.category, quantity: updates.quantity, price: updates.price, expiry_date: updates.expiry_date
+      name: updates.name, category: updates.category, quantity: updates.quantity, price: updates.price, expiry_date: updates.expiry_date || null, reorder_level: updates.reorder_level ?? 5
     }).eq('id', c.req.param('id'));
     if (error) throw error;
     return c.json({ message: "Updated" });
@@ -431,7 +531,7 @@ async function sendSemaphore(rawNumber, message) {
 // Logic to check if an appointment needs an SMS and send it
 async function checkAndSendReminders(apptIds = []) {
   const query = supabase.from('appointments').select('*, pets(name, owners(name, contact))')
-    .neq('status', 'completed').neq('status', 'cancelled');
+    .neq('status', 'completed').neq('status', 'cancelled').neq('status', 'Cancelled').neq('status', 'Requested');
 
   if (apptIds.length > 0) query.in('id', apptIds);
 
@@ -473,19 +573,116 @@ async function checkAndSendReminders(apptIds = []) {
 
 // ============== APPOINTMENTS ============== //
 
+// ---- Vaccination / deworming due reminders ----
+function buildDueMessage(ownerName, petName, entries) {
+  const what = entries.map(e => {
+    const kind = e.type === 'deworming' ? 'deworming' : e.type === 'vaccination' ? 'vaccination' : 'treatment';
+    return e.name ? `${kind} (${e.name})` : kind;
+  });
+  const uniq = [...new Set(what)].join(' and ');
+  const due = entries[0].next_due_date;
+  const dueText = new Date(due + 'T00:00:00+08:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'Asia/Manila' });
+  return `Hi ${ownerName}, this is PurrfectAC. ${petName} is due for ${uniq} on ${dueText}. Please call or text 0926 740 8552 to book a visit. Thank you!`;
+}
+
+// Sends one SMS per pet for history entries due within `daysAhead` days.
+async function sendDueReminders({ daysAhead = 3, historyIds = [] } = {}) {
+  let query = supabase.from('pet_history')
+    .select('id, type, name, next_due_date, pet_id, pets(name, owners(name, contact))')
+    .eq('reminder_sent', false)
+    .not('next_due_date', 'is', null);
+  if (historyIds.length) query = query.in('id', historyIds);
+  else query = query.gte('next_due_date', phtDate(0)).lte('next_due_date', phtDate(daysAhead));
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const byPet = {};
+  for (const h of data || []) (byPet[h.pet_id] = byPet[h.pet_id] || []).push(h);
+
+  let sent = 0;
+  const failures = [];
+  for (const entries of Object.values(byPet)) {
+    const owner = entries[0].pets?.owners;
+    if (!owner?.contact) { failures.push(`${entries[0].pets?.name || 'pet'}: no contact number`); continue; }
+    entries.sort((a, b) => a.next_due_date.localeCompare(b.next_due_date));
+    const result = await sendSemaphore(owner.contact, buildDueMessage(owner.name, entries[0].pets.name, entries));
+    if (result.ok) {
+      await supabase.from('pet_history').update({ reminder_sent: true }).in('id', entries.map(e => e.id));
+      sent++;
+    } else {
+      failures.push(`${entries[0].pets?.name}: ${result.error}`);
+    }
+  }
+  return { sent, failures };
+}
+
 app.post("/make-server-b53d76e4/cron/send-reminders", async (c) => {
   try {
     const sentCount = await checkAndSendReminders();
-    return c.json({ message: "Reminders processed", sentCount });
+    // Due-date reminders only during daytime (8 AM – 8 PM PHT)
+    let dueSent = 0;
+    const hour = phtHour();
+    if (hour >= 8 && hour < 20) dueSent = (await sendDueReminders()).sent;
+    return c.json({ message: "Reminders processed", sentCount, dueSent });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
 });
 
+// Manually send the due reminder for one history entry
+app.post("/make-server-b53d76e4/pet-history/:id/remind", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const id = c.req.param('id');
+    await supabase.from('pet_history').update({ reminder_sent: false }).eq('id', id);
+    const { sent, failures } = await sendDueReminders({ historyIds: [id] });
+    if (!sent) return c.json({ error: failures[0] || 'Nothing to send (no due date set?)' }, 502);
+    return c.json({ message: "Reminder sent" });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// Vaccines / deworming due soon or overdue, for the dashboard
+app.get("/make-server-b53d76e4/due-soon", async (c) => {
+  const days = Number(c.req.query('days') || 14);
+  const { data, error } = await supabase.from('pet_history')
+    .select('id, type, name, next_due_date, reminder_sent, pet_id')
+    .not('next_due_date', 'is', null)
+    .lte('next_due_date', phtDate(days))
+    .gte('next_due_date', phtDate(-60))
+    .order('next_due_date');
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ due: data || [] });
+});
+
+// ---- Appointment booking rules ----
+const ACTIVE_APPT_EXCLUDE = ['cancelled', 'Cancelled', 'completed', 'Completed'];
+const toMinutes = (t) => { const [h, m] = String(t || '00:00').split(':').map(Number); return h * 60 + (m || 0); };
+
+// Returns an existing appointment within 30 minutes of the requested slot, if any.
+async function findSlotConflict(date, time, excludeId = null) {
+  if (!date || !time) return null;
+  const { data } = await supabase.from('appointments').select('id, time, status, pets(name)').eq('date', date);
+  const target = toMinutes(time);
+  return (data || []).find(a =>
+    a.id !== excludeId && !ACTIVE_APPT_EXCLUDE.includes(a.status) && Math.abs(toMinutes(a.time) - target) < 30
+  ) || null;
+}
+
+const conflictMessage = (conf) => {
+  const t = String(conf.time || '').slice(0, 5);
+  return `That time is already booked (${conf.pets?.name || 'another patient'} at ${t}). Pick another time or book anyway.`;
+};
 
 app.post("/make-server-b53d76e4/appointments", async (c) => {
   const user = await getAuthUser(c);
-  const appt = await c.req.json();
+  const { force, ...appt } = await c.req.json();
+  if (!force) {
+    const conf = await findSlotConflict(appt.date, appt.time);
+    if (conf) return c.json({ error: conflictMessage(conf), conflict: true }, 409);
+  }
   const id = `appt:${Date.now()}`;
   const { error } = await supabase.from('appointments').insert({
     id, ...appt, created_by: user?.id
@@ -506,7 +703,22 @@ app.get("/make-server-b53d76e4/appointments", async (c) => {
 app.put("/make-server-b53d76e4/appointments/:id", async (c) => {
   try {
     const id = c.req.param('id');
-    const updates = await c.req.json();
+    const { force, ...updates } = await c.req.json();
+    const { data: current } = await supabase.from('appointments').select('date, time, checked_in_at').eq('id', id).maybeSingle();
+
+    const rescheduled = current && ((updates.date && updates.date !== current.date) ||
+      (updates.time && String(updates.time).slice(0, 5) !== String(current.time || '').slice(0, 5)));
+    if (rescheduled) {
+      if (!force) {
+        const conf = await findSlotConflict(updates.date || current.date, updates.time || current.time, id);
+        if (conf) return c.json({ error: conflictMessage(conf), conflict: true }, 409);
+      }
+      // New date/time → reminders should go out again
+      updates.sms_1d_sent = false;
+      updates.sms_sameday_sent = false;
+    }
+    if (updates.status === 'Waiting' && !current?.checked_in_at) updates.checked_in_at = new Date().toISOString();
+
     const { error } = await supabase.from('appointments').update(updates).eq('id', id);
     if (error) throw error;
 
@@ -592,38 +804,71 @@ app.post("/make-server-b53d76e4/billing", async (c) => {
     const id = `bill:${Date.now()}`;
 
     let itemsTotal = 0;
+    let servicesTotal = 0;
     const billItems = [];
 
-    if (body.items?.length) {
+    // Quantities already taken out of stock when the linked diagnosis dispensed them
+    const coveredByDiagnosis = {};
+    if (body.diagnosis_id) {
+      const { data: dm } = await supabase.from('diagnosis_medications')
+        .select('inventory_id, quantity, stock_deducted').eq('diagnosis_id', body.diagnosis_id);
+      for (const m of dm || []) if (m.stock_deducted) coveredByDiagnosis[m.inventory_id] = (coveredByDiagnosis[m.inventory_id] || 0) + Number(m.quantity || 0);
+    }
+
+    const toDeduct = [];
+    const products = (body.items || []).filter(i => i.inventory_id && Number(i.quantity) > 0);
+    if (products.length) {
       const { data: inventory } = await supabase.from('inventory').select('id, name, price');
-      for (const item of body.items) {
+      for (const item of products) {
         const inv = inventory?.find(i => i.id === item.inventory_id);
+        const qty = Number(item.quantity);
         const price = inv ? parseFloat(inv.price || 0) : 0;
-        const subtotal = price * (item.quantity || 0);
+        const subtotal = price * qty;
         itemsTotal += subtotal;
+        const covered = Math.min(qty, coveredByDiagnosis[item.inventory_id] || 0);
+        coveredByDiagnosis[item.inventory_id] = (coveredByDiagnosis[item.inventory_id] || 0) - covered;
+        const extra = qty - covered;
+        if (extra > 0) toDeduct.push({ id: item.inventory_id, qty: extra });
         billItems.push({
-          bill_id: id,
-          inventory_id: item.inventory_id,
-          name: inv?.name || 'Unknown',
-          quantity: item.quantity,
-          unit_price: price,
-          subtotal: subtotal
+          bill_id: id, item_type: 'inventory', inventory_id: item.inventory_id,
+          name: inv?.name || 'Unknown', quantity: qty, unit_price: price, subtotal,
+          stock_deducted: extra > 0,
         });
       }
     }
 
-    const total = parseFloat(body.consultation_fee || 0) + itemsTotal;
+    const services = (body.services || []).filter(s => s.service_id && Number(s.quantity) > 0);
+    if (services.length) {
+      const { data: svc } = await supabase.from('services').select('id, name, price');
+      for (const s of services) {
+        const def = svc?.find(x => x.id === s.service_id);
+        const qty = Number(s.quantity);
+        // Allow a custom price (e.g. surgery quotes); default to the price list
+        const price = s.unit_price != null && s.unit_price !== '' ? parseFloat(s.unit_price) : parseFloat(def?.price || 0);
+        const subtotal = price * qty;
+        servicesTotal += subtotal;
+        billItems.push({
+          bill_id: id, item_type: 'service', service_id: s.service_id,
+          name: def?.name || 'Service', quantity: qty, unit_price: price, subtotal,
+        });
+      }
+    }
+
+    const total = parseFloat(body.consultation_fee || 0) + itemsTotal + servicesTotal;
 
     const { error: bErr } = await supabase.from('billing').insert({
-      id, pet_id: body.pet_id, diagnosis_id: body.diagnosis_id, consultation_fee: body.consultation_fee, total_cost: total, status: 'unpaid'
+      id, pet_id: body.pet_id, diagnosis_id: body.diagnosis_id || null, consultation_fee: body.consultation_fee || 0,
+      services_total: servicesTotal, total_cost: total, status: 'unpaid'
     });
     if (bErr) throw bErr;
 
     if (billItems.length > 0) {
-      await supabase.from('billing_items').insert(billItems);
+      const { error: iErr } = await supabase.from('billing_items').insert(billItems);
+      if (iErr) throw iErr;
+      for (const d of toDeduct) await adjustStock(d.id, -d.qty);
     }
 
-    return c.json({ message: "Billed", id });
+    return c.json({ message: "Billed", id, total });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
@@ -652,6 +897,230 @@ app.put("/make-server-b53d76e4/billing/:billId", async (c) => {
     const { error } = await supabase.from('billing').update(updates).eq('id', billId);
     if (error) throw error;
     return c.json({ message: "Updated" });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+const PAYMENT_METHODS = ['cash', 'gcash', 'maya', 'card', 'bank', 'other'];
+
+app.post("/make-server-b53d76e4/billing/:billId/pay", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const { payment_method } = await c.req.json();
+    const method = PAYMENT_METHODS.includes(payment_method) ? payment_method : 'cash';
+    const { error } = await supabase.from('billing')
+      .update({ status: 'paid', payment_method: method, paid_at: new Date().toISOString() })
+      .eq('id', c.req.param('billId'));
+    if (error) throw error;
+    return c.json({ message: "Paid" });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post("/make-server-b53d76e4/billing/:billId/unpay", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const { error } = await supabase.from('billing')
+      .update({ status: 'unpaid', payment_method: null, paid_at: null })
+      .eq('id', c.req.param('billId'));
+    if (error) throw error;
+    return c.json({ message: "Marked unpaid" });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ============== SERVICES (PRICE LIST) ============== //
+
+app.get("/make-server-b53d76e4/services", async (c) => {
+  const { data, error } = await supabase.from('services').select('*').order('category').order('name');
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ services: data || [] });
+});
+
+app.post("/make-server-b53d76e4/services", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const s = await c.req.json();
+    if (!s.name?.trim()) throw new Error('Service name is required');
+    const id = `service:${Date.now()}`;
+    const { error } = await supabase.from('services').insert({
+      id, name: s.name.trim(), category: s.category || 'Other', price: Number(s.price || 0), active: s.active !== false,
+    });
+    if (error) throw error;
+    return c.json({ message: "Created", id });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.put("/make-server-b53d76e4/services/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const s = await c.req.json();
+    const updates = {};
+    for (const k of ['name', 'category', 'price', 'active']) if (k in s) updates[k] = s[k];
+    const { error } = await supabase.from('services').update(updates).eq('id', c.req.param('id'));
+    if (error) throw error;
+    return c.json({ message: "Updated" });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ============== REPORTS ============== //
+
+// Paid bills for one day (Philippine time), totals by payment method
+app.get("/make-server-b53d76e4/reports/daily", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const date = c.req.query('date') || phtDate(0);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('date must be YYYY-MM-DD');
+    const start = new Date(`${date}T00:00:00+08:00`).toISOString();
+    const end = new Date(new Date(`${date}T00:00:00+08:00`).getTime() + 86400000).toISOString();
+    const { data, error } = await supabase.from('billing')
+      .select('*, items:billing_items(*), pets(name, owners(name))')
+      .eq('status', 'paid').gte('paid_at', start).lt('paid_at', end).order('paid_at');
+    if (error) throw error;
+
+    const byMethod = {};
+    let total = 0;
+    for (const b of data || []) {
+      const m = b.payment_method || 'cash';
+      byMethod[m] = (byMethod[m] || 0) + Number(b.total_cost || 0);
+      total += Number(b.total_cost || 0);
+    }
+    const { count: unpaidCount } = await supabase.from('billing').select('*', { count: 'exact', head: true }).eq('status', 'unpaid');
+    return c.json({ date, bills: data || [], byMethod, total, count: (data || []).length, unpaidCount: unpaidCount || 0 });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// ============== DOCUMENTS (generated forms) ============== //
+
+app.post("/make-server-b53d76e4/documents", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return c.json({ error: "Unauthorized" }, 401);
+    const b = await c.req.json();
+    if (!b.content_base64 || !b.file_name || !b.doc_type) throw new Error('doc_type, file_name and content_base64 are required');
+    const bytes = decodeBase64(b.content_base64);
+    if (bytes.length > 5 * 1024 * 1024) throw new Error('Document is too large');
+    const folder = b.pet_id ? b.pet_id.replace(/[^a-zA-Z0-9_-]/g, '_') : 'walk-in';
+    const safeName = String(b.file_name).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${folder}/${Date.now()}-${safeName}`;
+    const { error: upErr } = await supabase.storage.from('documents').upload(path, bytes, {
+      contentType: b.content_type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    if (upErr) throw upErr;
+    const { data, error } = await supabase.from('documents').insert({
+      pet_id: b.pet_id || null, pet_name: b.pet_name, owner_name: b.owner_name,
+      doc_type: b.doc_type, file_name: b.file_name, storage_path: path, created_by: user.id,
+    }).select('id').single();
+    if (error) throw error;
+    return c.json({ message: "Saved", id: data.id });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get("/make-server-b53d76e4/documents", async (c) => {
+  const user = await getAuthUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  let query = supabase.from('documents').select('*').order('created_at', { ascending: false }).limit(200);
+  const petId = c.req.query('pet_id');
+  if (petId) query = query.eq('pet_id', petId);
+  const { data, error } = await query;
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ documents: data || [] });
+});
+
+app.get("/make-server-b53d76e4/documents/:id/url", async (c) => {
+  const user = await getAuthUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const { data: doc } = await supabase.from('documents').select('storage_path, file_name').eq('id', c.req.param('id')).maybeSingle();
+  if (!doc) return c.json({ error: "Not found" }, 404);
+  const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.storage_path, 300, { download: doc.file_name });
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ url: data.signedUrl });
+});
+
+// ============== OWNER PORTAL (scoped to the signed-in owner) ============== //
+
+async function getOwnerScope(c) {
+  const user = await getAuthUser(c);
+  if (!user?.email) return null;
+  const { data: owners } = await supabase.from('owners').select('*').ilike('email', user.email);
+  const ownerIds = (owners || []).filter(o => (o.email || '').toLowerCase() === user.email.toLowerCase()).map(o => o.id);
+  return { user, owners: (owners || []).filter(o => ownerIds.includes(o.id)), ownerIds };
+}
+
+app.get("/make-server-b53d76e4/my/overview", async (c) => {
+  try {
+    const scope = await getOwnerScope(c);
+    if (!scope) return c.json({ error: "Unauthorized" }, 401);
+    if (!scope.ownerIds.length) return c.json({ owners: [], pets: [], appointments: [], bills: [], history: [], visits: [] });
+
+    const { data: petsRaw } = await supabase.from('pets').select('*').in('owner_id', scope.ownerIds);
+    const pets = await signPetPhotos(petsRaw || []);
+    const petIds = pets.map(p => p.id);
+    if (!petIds.length) return c.json({ owners: scope.owners, pets: [], appointments: [], bills: [], history: [], visits: [] });
+
+    const [appts, bills, history, visits] = await Promise.all([
+      supabase.from('appointments').select('*').in('pet_id', petIds).order('date', { ascending: false }),
+      supabase.from('billing').select('*, items:billing_items(*)').in('pet_id', petIds).order('created_at', { ascending: false }),
+      supabase.from('pet_history').select('*').in('pet_id', petIds).order('date', { ascending: false }),
+      supabase.from('diagnoses').select('id, pet_id, date, weight, temperature, vaccination, dx, rx, follow_up_date').in('pet_id', petIds).order('date', { ascending: false }),
+    ]);
+    return c.json({
+      owners: scope.owners, pets,
+      appointments: appts.data || [], bills: bills.data || [],
+      history: history.data || [], visits: visits.data || [],
+    });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post("/make-server-b53d76e4/my/appointment-requests", async (c) => {
+  try {
+    const scope = await getOwnerScope(c);
+    if (!scope) return c.json({ error: "Unauthorized" }, 401);
+    const { pet_id, date, time, reason } = await c.req.json();
+    if (!pet_id || !date || !time) throw new Error('Pet, date and time are required');
+    if (date < phtDate(0)) throw new Error('Please choose a future date');
+    const { data: pet } = await supabase.from('pets').select('id, owner_id').eq('id', pet_id).maybeSingle();
+    if (!pet || !scope.ownerIds.includes(pet.owner_id)) return c.json({ error: "Pet not found" }, 404);
+    const id = `appt:${Date.now()}`;
+    const { error } = await supabase.from('appointments').insert({
+      id, pet_id, date, time, reason: reason || 'Check-up', status: 'Requested',
+      requested_by_owner: true, created_by: scope.user.id,
+    });
+    if (error) throw error;
+    return c.json({ message: "Request sent", id });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.post("/make-server-b53d76e4/my/appointment-requests/:id/cancel", async (c) => {
+  try {
+    const scope = await getOwnerScope(c);
+    if (!scope) return c.json({ error: "Unauthorized" }, 401);
+    const { data: appt } = await supabase.from('appointments').select('id, status, pets(owner_id)').eq('id', c.req.param('id')).maybeSingle();
+    if (!appt || !scope.ownerIds.includes(appt.pets?.owner_id)) return c.json({ error: "Not found" }, 404);
+    if (!['Requested', 'Scheduled'].includes(appt.status)) throw new Error('This appointment can no longer be cancelled online');
+    const { error } = await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', appt.id);
+    if (error) throw error;
+    return c.json({ message: "Cancelled" });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }

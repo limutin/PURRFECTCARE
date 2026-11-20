@@ -76,7 +76,7 @@ export default function App() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #f0fdf4 0%, #f8fafb 50%, #ecfdf5 100%)',
+        background: 'linear-gradient(135deg, #f0fdfa 0%, #f8fafb 50%, #f0fdfa 100%)',
         fontFamily: "'Inter', sans-serif",
         gap: '1.5rem',
       }}>
@@ -88,7 +88,7 @@ export default function App() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 12px 32px rgba(5, 150, 105, 0.2)',
+          boxShadow: '0 12px 32px rgba(13, 148, 136, 0.2)',
           animation: 'pulse 2s ease-in-out infinite',
           overflow: 'hidden'
         }}>

@@ -46,6 +46,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
   const [quantity, setQuantity] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [price, setPrice] = useState('');
+  const [reorderLevel, setReorderLevel] = useState('5');
 
   useEffect(() => {
     fetchInventory();
@@ -93,6 +94,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
             quantity: parseInt(quantity),
             expiry_date: expiryDate,
             price: parseFloat(price),
+            reorder_level: parseInt(reorderLevel) || 0,
           }),
         }
       );
@@ -134,6 +136,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
             quantity: parseInt(quantity),
             expiry_date: expiryDate,
             price: parseFloat(price),
+            reorder_level: parseInt(reorderLevel) || 0,
           }),
         }
       );
@@ -188,8 +191,9 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
     setName(item.value.name);
     setCategory(item.value.category);
     setQuantity(item.value.quantity.toString());
-    setExpiryDate(item.value.expiry_date);
+    setExpiryDate(item.value.expiry_date || '');
     setPrice(item.value.price.toString());
+    setReorderLevel(String(item.value.reorder_level ?? 5));
   };
 
   const resetForm = () => {
@@ -198,16 +202,19 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
     setQuantity('');
     setExpiryDate('');
     setPrice('');
+    setReorderLevel('5');
     setEditingItem(null);
   };
 
-  const getStockBadge = (qty: number) => {
-    if (qty === 0) return <Badge variant="destructive">Out of Stock</Badge>;
-    if (qty < 20) return <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200">Low Stock</Badge>;
+  const levelOf = (item: any) => Number(item.value.reorder_level ?? 5);
+  const getStockBadge = (qty: number, level: number = 5) => {
+    if (qty <= 0) return <Badge variant="destructive">Out of Stock</Badge>;
+    if (qty <= level) return <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200">Low Stock</Badge>;
     return <Badge variant="default" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200">In Stock</Badge>;
   };
 
   const isExpiringSoon = (expiryDate: string) => {
+    if (!expiryDate) return false;
     const expiry = new Date(expiryDate);
     const today = new Date();
     const daysUntilExpiry = Math.floor((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -215,7 +222,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
   };
 
   const isExpired = (expiryDate: string) => {
-    return new Date(expiryDate) < new Date();
+    return !!expiryDate && new Date(expiryDate) < new Date();
   };
 
   const filteredInventory = inventory.filter(item => {
@@ -227,7 +234,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
     return matchesSearch && matchesCategory && matchesExpiring;
   });
 
-  const lowStockItems = inventory.filter(item => item.value.quantity < 20);
+  const lowStockItems = inventory.filter(item => Number(item.value.quantity) <= levelOf(item));
 
   return (
     <div className="p-6 space-y-6">
@@ -307,13 +314,24 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="expiry-date">Expiration Date *</Label>
+                <Label htmlFor="reorder-level">Reorder level</Label>
+                <Input
+                  id="reorder-level"
+                  type="number"
+                  min="0"
+                  value={reorderLevel}
+                  onChange={(e) => setReorderLevel(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">You'll get a low-stock alert when quantity drops to this number. Stock is deducted automatically when medicines are dispensed or sold.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expiry-date">Expiration Date</Label>
                 <Input
                   id="expiry-date"
                   type="date"
                   value={expiryDate}
                   onChange={(e) => setExpiryDate(e.target.value)}
-                  required
                 />
               </div>
 
@@ -470,7 +488,7 @@ export function InventoryManager({ accessToken }: InventoryManagerProps) {
                           {isExpiringSoon(item.value.expiry_date) && !isExpired(item.value.expiry_date) && ' ⚠️'}
                         </span>
                       </TableCell>
-                      <TableCell>{getStockBadge(item.value.quantity)}</TableCell>
+                      <TableCell>{getStockBadge(Number(item.value.quantity), levelOf(item))}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Button

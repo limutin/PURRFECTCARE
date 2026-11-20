@@ -10,7 +10,7 @@ import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Syringe, Plus, Pencil, Trash2, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Syringe, Plus, Pencil, Trash2, Loader2, ShieldCheck, AlertTriangle, MessageSquare, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface PetHistoryPanelProps {
@@ -46,6 +46,22 @@ export function PetHistoryPanel({ accessToken, petId, diagnoses = [], readOnly =
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [remindingId, setRemindingId] = useState<string | null>(null);
+
+  const sendReminder = async (entry: any) => {
+    setRemindingId(entry.key);
+    try {
+      const res = await fetch(getFunctionUrl(`/pet-history/${encodeURIComponent(entry.key)}/remind`), { method: 'POST', headers });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to send');
+      toast.success('Reminder SMS sent to the owner');
+      fetchHistory();
+    } catch (err: any) {
+      toast.error('Reminder not sent: ' + err.message);
+    } finally {
+      setRemindingId(null);
+    }
+  };
 
   const headers = {
     'Content-Type': 'application/json',
@@ -229,6 +245,20 @@ export function PetHistoryPanel({ accessToken, petId, diagnoses = [], readOnly =
                         <span className="text-[10px] uppercase text-muted-foreground">From visit</span>
                       ) : (
                         <div className="flex justify-end gap-1">
+                          {r.value.next_due_date && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={r.value.reminder_sent ? 'Reminder already sent — send again' : 'Send due-date reminder SMS'}
+                              className="h-8 w-8 hover:bg-teal-100 hover:text-teal-700"
+                              onClick={() => sendReminder(r)}
+                              disabled={remindingId === r.key}
+                            >
+                              {remindingId === r.key
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : r.value.reminder_sent ? <Check className="w-4 h-4 text-teal-600" /> : <MessageSquare className="w-4 h-4" />}
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" title="Edit" className="h-8 w-8 hover:bg-amber-100 hover:text-amber-600" onClick={() => openEdit(r)}><Pencil className="w-4 h-4" /></Button>
                           <Button variant="ghost" size="icon" title="Delete" className="h-8 w-8 hover:bg-red-100 hover:text-red-500" onClick={() => handleDelete(r)} disabled={deletingId === r.key}>
                             {deletingId === r.key ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}

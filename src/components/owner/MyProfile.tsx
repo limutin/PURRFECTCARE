@@ -1,62 +1,65 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Label } from '../ui/label';
-import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
-import { User } from 'lucide-react';
+import { User, Phone, MapPin, Mail, PawPrint, Info } from 'lucide-react';
+import { OwnerOverview, Panel, PageHeader, CLINIC_PHONE } from './ownerShared';
 
 interface MyProfileProps {
   user: any;
-  accessToken: string;
+  data: OwnerOverview;
 }
 
-export function MyProfile({ user, accessToken }: MyProfileProps) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">My Profile</h2>
-        <p className="text-muted-foreground">View your account information</p>
+export function MyProfile({ user, data }: MyProfileProps) {
+  const owner = data.owners[0];
+  const initials = (owner?.name || user?.name || '?')
+    .split(' ')
+    .map((n: string) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const field = (Icon: any, label: string, value?: string | null) => (
+    <div className="flex items-start gap-3 py-3">
+      <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4" />
       </div>
+      <div className="min-w-0">
+        <div className="text-xs text-gray-500">{label}</div>
+        <div className="text-sm font-medium text-gray-900 break-words">{value || <span className="text-gray-400 font-normal">Not provided</span>}</div>
+      </div>
+    </div>
+  );
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-              <User className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <CardTitle>{user.name}</CardTitle>
-              <CardDescription>{user.email}</CardDescription>
-            </div>
+  return (
+    <div className="max-w-2xl">
+      <PageHeader title="Profile" subtitle="Your details on file at the clinic" />
+      <Panel className="p-5 sm:p-6">
+        <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center text-lg font-bold shrink-0">
+            {initials}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input id="name" value={user.name} disabled />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input id="email" type="email" value={user.email} disabled />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Role</Label>
-            <div>
-              <Badge variant="outline" className="capitalize">
-                {user.role}
-              </Badge>
+          <div className="min-w-0">
+            <div className="text-lg font-bold text-gray-900 truncate">{owner?.name || user?.name}</div>
+            <div className="text-sm text-gray-500 flex items-center gap-1">
+              <PawPrint className="w-3.5 h-3.5" /> {data.pets.length} pet{data.pets.length === 1 ? '' : 's'} registered
             </div>
           </div>
+        </div>
 
-          <div className="pt-4 border-t border-border">
-            <p className="text-sm text-muted-foreground">
-              To update your profile information, please contact the clinic staff.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="divide-y divide-gray-100">
+          {owner && field(User, 'Name on file', owner.name)}
+          {owner && field(Phone, 'Contact number', owner.contact)}
+          {owner && field(MapPin, 'Address', owner.address)}
+          {field(Mail, 'Account email (sign-in)', user?.email)}
+        </div>
+
+        <div className="mt-4 flex items-start gap-2 rounded-xl bg-gray-50 p-3 text-xs text-gray-600">
+          <Info className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            {owner
+              ? `Need to update your details? Please let the clinic staff know on your next visit or call ${CLINIC_PHONE}.`
+              : `Your account isn't linked to a client record yet. Ask the clinic to register you with this email address, or call ${CLINIC_PHONE}.`}
+          </span>
+        </div>
+      </Panel>
     </div>
   );
 }
