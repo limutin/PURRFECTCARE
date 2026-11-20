@@ -142,6 +142,7 @@ export function SecretaryDashboard({ user, accessToken, onLogout }: SecretaryDas
             <h1>{getActiveLabel()}</h1>
           </div>
           <div className="vc-main-header-right">
+            <span className="vc-main-header-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
             <span className="vc-main-header-badge">Secretary</span>
             <AlertDialog>
               <AlertDialogTrigger asChild>
