@@ -22,13 +22,70 @@ app.use("/*", cors({
 
 app.use('*', logger(console.log));
 
-// Helper to handle authentication
+// Helper to handle authentication (cached per request by the access gate below)
 async function getAuthUser(c: Context) {
+  const cached = c.get('authUser');
+  if (cached !== undefined) return cached;
   const token = c.req.header('Authorization')?.split(' ')[1];
   if (!token) return null;
   const { data: { user } } = await supabase.auth.getUser(token);
-  return user;
+  return user || null;
 }
+
+// ============== ACCESS CONTROL ============== //
+// Roles come only from user_profiles (users cannot edit it). user_metadata is
+// ignored for authorization because users can change their own metadata.
+
+const BASE = '/make-server-b53d76e4';
+const STAFF_ROLES = ['doctor', 'secretary'];
+const OWNER_ROLES = ['owner', 'client'];
+
+// Reachable without signing in
+const PUBLIC_ROUTES = [
+  ['POST', `${BASE}/signup`],
+  ['POST', `${BASE}/cron/send-reminders`],   // called by pg_cron; idempotent
+];
+
+// Staff routes only a doctor may use: [method, path prefix]
+const DOCTOR_ONLY = [
+  ['POST', `${BASE}/diagnoses`], ['PUT', `${BASE}/diagnoses/`], ['DELETE', `${BASE}/diagnoses/`],
+  ['POST', `${BASE}/inventory`], ['PUT', `${BASE}/inventory/`], ['DELETE', `${BASE}/inventory/`],
+  ['POST', `${BASE}/migrate`],
+  ['GET', `${BASE}/staff`], ['POST', `${BASE}/staff`], ['PUT', `${BASE}/staff/`],
+];
+
+app.use(`${BASE}/*`, async (c, next) => {
+  const method = c.req.method;
+  if (method === 'OPTIONS') return next();
+  const path = c.req.path;
+  if (PUBLIC_ROUTES.some(([m, p]) => m === method && path === p)) return next();
+
+  const token = c.req.header('Authorization')?.split(' ')[1];
+  if (!token) return c.json({ error: 'Please sign in' }, 401);
+  const { data: { user } } = await supabase.auth.getUser(token);
+  if (!user) return c.json({ error: 'Your session has expired. Please sign in again.' }, 401);
+  c.set('authUser', user);
+
+  const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', user.id).maybeSingle();
+  const role = profile?.role || null;
+  c.set('role', role);
+
+  // Any signed-in user may read their own profile
+  if (method === 'GET' && path === `${BASE}/user`) return next();
+
+  // Owner portal routes
+  if (path.startsWith(`${BASE}/my/`)) {
+    return OWNER_ROLES.includes(role) || STAFF_ROLES.includes(role) ? next() : c.json({ error: 'Not allowed' }, 403);
+  }
+
+  // Everything else is clinic staff only
+  if (!STAFF_ROLES.includes(role)) return c.json({ error: 'Clinic staff only' }, 403);
+
+  const doctorOnly = DOCTOR_ONLY.some(([m, p]) => m === method && (p.endsWith('/') ? path.startsWith(p) : path === p));
+  if (doctorOnly && role !== 'doctor') return c.json({ error: 'Only a doctor can do this' }, 403);
+
+  return next();
+});
 
 // ============== SHARED HELPERS ============== //
 
@@ -63,15 +120,63 @@ async function signPetPhotos(pets) {
 
 // ============== AUTH ============== //
 
+// Public sign-up creates PET OWNER accounts only. Staff accounts are created
+// by a doctor through /staff.
 app.post("/make-server-b53d76e4/signup", async (c) => {
   try {
-    const { email, password, name, role } = await c.req.json();
+    const { email, password, name } = await c.req.json();
+    if (!email || !password || !name?.trim()) throw new Error('Name, email and password are required');
+    if (String(password).length < 8) throw new Error('Password must be at least 8 characters');
+    const role = 'owner';
     const { data, error } = await supabase.auth.admin.createUser({
-      email, password, user_metadata: { name, role }, email_confirm: true
+      email, password, user_metadata: { name: name.trim(), role }, email_confirm: true
     });
     if (error) throw error;
-    await supabase.from('user_profiles').upsert({ id: data.user.id, email, name, role });
-    return c.json({ message: "Success", user: data.user });
+    const { error: pErr } = await supabase.from('user_profiles').upsert({ id: data.user.id, email, name: name.trim(), role });
+    if (pErr) throw pErr;
+    return c.json({ message: "Success" });
+  } catch (e) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// ---- Staff accounts (doctor only; enforced by the access gate) ----
+app.get("/make-server-b53d76e4/staff", async (c) => {
+  const { data, error } = await supabase.from('user_profiles')
+    .select('id, email, name, role, created_at').in('role', STAFF_ROLES).order('created_at');
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ staff: data || [] });
+});
+
+app.post("/make-server-b53d76e4/staff", async (c) => {
+  try {
+    const { email, password, name, role } = await c.req.json();
+    if (!STAFF_ROLES.includes(role)) throw new Error('Role must be doctor or secretary');
+    if (!email || !name?.trim()) throw new Error('Name and email are required');
+    if (!password || String(password).length < 8) throw new Error('Temporary password must be at least 8 characters');
+    const { data, error } = await supabase.auth.admin.createUser({
+      email, password, user_metadata: { name: name.trim(), role }, email_confirm: true
+    });
+    if (error) throw error;
+    const { error: pErr } = await supabase.from('user_profiles').upsert({ id: data.user.id, email, name: name.trim(), role });
+    if (pErr) throw pErr;
+    return c.json({ message: "Staff account created" });
+  } catch (e) {
+    return c.json({ error: e.message }, 400);
+  }
+});
+
+// Change a staff member's role, or remove their staff access
+app.put("/make-server-b53d76e4/staff/:id", async (c) => {
+  try {
+    const id = c.req.param('id');
+    const me = await getAuthUser(c);
+    const { role } = await c.req.json();
+    if (![...STAFF_ROLES, 'disabled'].includes(role)) throw new Error('Role must be doctor, secretary or disabled');
+    if (id === me?.id) throw new Error("You can't change your own role");
+    const { error } = await supabase.from('user_profiles').update({ role }).eq('id', id);
+    if (error) throw error;
+    return c.json({ message: "Updated" });
   } catch (e) {
     return c.json({ error: e.message }, 400);
   }
@@ -81,7 +186,8 @@ app.get("/make-server-b53d76e4/user", async (c) => {
   const user = await getAuthUser(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
   const { data } = await supabase.from('user_profiles').select('*').eq('id', user.id).maybeSingle();
-  return c.json({ user: data || user });
+  // Never fall back to user_metadata.role: users can edit their own metadata
+  return c.json({ user: data || { id: user.id, email: user.email, name: user.user_metadata?.name || '', role: null } });
 });
 
 // ============== OWNERS & PETS ============== //
