@@ -1,189 +1,275 @@
-import React, { useState, useEffect } from 'react';
-import { projectId } from '../../utils/supabase/info';
-import { formatDate } from '../../utils/formatDate';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Skeleton } from '../ui/skeleton';
-import { Calendar as CalendarIcon, Clock } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Calendar, Clock, Plus, CalendarX, Loader2, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { api } from '../../utils/api';
+import { formatDate, todayLocal } from '../../utils/formatDate';
+import { PetAvatar } from '../shared/PetAvatar';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '../ui/alert-dialog';
+import {
+  OwnerOverview, OwnerAppointment, Panel, PageHeader, EmptyState, StatusPill, formatTime, isCancellable,
+  isClosedStatus, ymd, CLINIC_PHONE,
+} from './ownerShared';
 
 interface MyAppointmentsProps {
+  data: OwnerOverview;
   accessToken: string;
+  onChanged: () => Promise<void> | void;
 }
 
-export function MyAppointments({ accessToken }: MyAppointmentsProps) {
-  const [appointments, setAppointments] = useState<any[]>([]);
-  const [pets, setPets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+const sortKey = (a: OwnerAppointment) => `${ymd(a.date)} ${a.time || ''}`;
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+export function MyAppointments({ data, accessToken, onChanged }: MyAppointmentsProps) {
+  const today = todayLocal();
+  const petById = useMemo(() => new Map(data.pets.map((p) => [p.id, p])), [data.pets]);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<OwnerAppointment | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
-  const fetchData = async () => {
+  const upcoming = data.appointments
+    .filter((a) => ymd(a.date) >= today && !isClosedStatus(a.status))
+    .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  const past = data.appointments
+    .filter((a) => !(ymd(a.date) >= today && !isClosedStatus(a.status)))
+    .sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
     try {
-      const [appointmentsRes, petsRes] = await Promise.all([
-        fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b53d76e4/appointments`, {
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-        }),
-        fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b53d76e4/pets`, {
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-        }),
-      ]);
-
-      const appointmentsData = await appointmentsRes.json();
-      const petsData = await petsRes.json();
-
-      setAppointments(appointmentsData.appointments || []);
-      setPets(petsData.pets || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load appointments');
+      await api(`/my/appointment-requests/${cancelTarget.id}/cancel`, accessToken, { method: 'POST' });
+      toast.success('Appointment cancelled');
+      setCancelTarget(null);
+      await onChanged();
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not cancel the appointment');
     } finally {
-      setLoading(false);
+      setCancelling(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const displayStatus = (status === 'pending' || status === 'confirmed') ? 'Scheduled' : status;
-    const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
-      Scheduled: 'default',
-      completed: 'outline',
-    };
-    return <Badge variant={variants[displayStatus] || 'default'}>{displayStatus}</Badge>;
+  const row = (a: OwnerAppointment, isPast: boolean) => {
+    const pet = petById.get(a.pet_id);
+    return (
+      <li key={a.id} className={`flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-3 sm:p-4 ${isPast ? 'opacity-80' : ''}`}>
+        <PetAvatar type={pet?.type || undefined} photoUrl={pet?.photo_url} name={pet?.name} size={44} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-gray-900">{pet?.name || 'Your pet'}</span>
+            <StatusPill status={a.status} />
+          </div>
+          {a.reason && <p className="text-sm text-gray-600 mt-0.5 break-words">{a.reason}</p>}
+          <p className="text-sm text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{formatDate(ymd(a.date))}</span>
+            {a.time && <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatTime(a.time)}</span>}
+          </p>
+        </div>
+        {!isPast && isCancellable(a) && (
+          <Button variant="outline" size="sm" className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => setCancelTarget(a)}>
+            Cancel
+          </Button>
+        )}
+      </li>
+    );
   };
 
-  const upcomingAppointments = appointments.filter((apt) => {
-    const aptDate = new Date(apt.value.date);
-    return aptDate >= new Date() && apt.value.status !== 'completed';
-  }).sort((a, b) => new Date(a.value.date).getTime() - new Date(b.value.date).getTime());
-
-  const pastAppointments = appointments.filter((apt) => {
-    const aptDate = new Date(apt.value.date);
-    return aptDate < new Date() || apt.value.status === 'completed';
-  }).sort((a, b) => new Date(b.value.date).getTime() - new Date(a.value.date).getTime());
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">My Appointments</h2>
-        <p className="text-muted-foreground">View your upcoming and past appointments</p>
+    <div>
+      <PageHeader
+        title="Appointments"
+        subtitle="Request a visit and keep track of upcoming and past appointments"
+        action={
+          data.pets.length > 0 && (
+            <Button onClick={() => setRequestOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white self-start sm:self-auto">
+              <Plus className="w-4 h-4 mr-1.5" /> Request appointment
+            </Button>
+          )
+        }
+      />
+
+      <div className="space-y-5">
+        <Panel className="p-4 sm:p-5">
+          <h3 className="font-semibold text-gray-900 mb-3">Upcoming</h3>
+          {upcoming.length === 0 ? (
+            <EmptyState icon={Calendar} title="No upcoming appointments" text="Need a check-up, vaccine or grooming? Send a request and the clinic will confirm a schedule." />
+          ) : (
+            <ul className="space-y-2">{upcoming.map((a) => row(a, false))}</ul>
+          )}
+          {upcoming.some((a) => ['requested', 'pending'].includes((a.status || '').toLowerCase())) && (
+            <p className="mt-3 flex items-start gap-2 text-xs text-gray-500">
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              Requests marked "Awaiting confirmation" still need to be approved by the clinic. For urgent concerns, call {CLINIC_PHONE}.
+            </p>
+          )}
+        </Panel>
+
+        <Panel className="p-4 sm:p-5">
+          <h3 className="font-semibold text-gray-900 mb-3">Past & cancelled</h3>
+          {past.length === 0 ? (
+            <EmptyState icon={CalendarX} title="No past appointments" />
+          ) : (
+            <ul className="space-y-2">{past.map((a) => row(a, true))}</ul>
+          )}
+        </Panel>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Upcoming Appointments</CardTitle>
-          <CardDescription>Your scheduled visits</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="p-4 border rounded-lg space-y-3">
-                  <div className="flex justify-between">
-                    <Skeleton className="h-5 w-[140px]" />
-                    <Skeleton className="h-6 w-[80px] rounded-full" />
-                  </div>
-                  <div className="flex gap-4">
-                    <Skeleton className="h-4 w-[120px]" />
-                    <Skeleton className="h-4 w-[80px]" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : upcomingAppointments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No upcoming appointments
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {upcomingAppointments.map((apt) => {
-                const pet = pets.find((p) => p.value.id === apt.value.pet_id);
-                const aptDate = new Date(apt.value.date);
+      <RequestDialog
+        open={requestOpen}
+        onOpenChange={setRequestOpen}
+        data={data}
+        accessToken={accessToken}
+        onCreated={onChanged}
+      />
 
-                return (
-                  <div
-                    key={apt.key}
-                    className="p-4 border border-border rounded-lg hover:border-primary transition-colors"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className="font-semibold text-foreground">
-                          {pet?.value.name || 'Unknown Pet'}
-                        </h4>
-                        {apt.value.reason && (
-                          <p className="text-sm text-muted-foreground">{apt.value.reason}</p>
-                        )}
-                      </div>
-                      {getStatusBadge(apt.value.status)}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <CalendarIcon className="w-4 h-4" />
-                        {formatDate(aptDate)}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {aptDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Past Appointments</CardTitle>
-          <CardDescription>Your appointment history</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {pastAppointments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No past appointments
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {pastAppointments.slice(0, 5).map((apt) => {
-                const pet = pets.find((p) => p.value.id === apt.value.pet_id);
-                const aptDate = new Date(apt.value.date);
-
-                return (
-                  <div
-                    key={apt.key}
-                    className="p-4 border border-border rounded-lg opacity-75"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className="font-semibold text-foreground">
-                          {pet?.value.name || 'Unknown Pet'}
-                        </h4>
-                        {apt.value.reason && (
-                          <p className="text-sm text-muted-foreground">{apt.value.reason}</p>
-                        )}
-                      </div>
-                      {getStatusBadge(apt.value.status)}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <CalendarIcon className="w-4 h-4" />
-                        {formatDate(aptDate)}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {aptDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && !cancelling && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this appointment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {cancelTarget && (
+                <>
+                  {petById.get(cancelTarget.pet_id)?.name || 'Your pet'} on {formatDate(ymd(cancelTarget.date))}
+                  {cancelTarget.time ? ` at ${formatTime(cancelTarget.time)}` : ''}. The clinic will be notified.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmCancel(); }}
+              disabled={cancelling}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {cancelling && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+              Cancel appointment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+function RequestDialog({
+  open, onOpenChange, data, accessToken, onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  data: OwnerOverview;
+  accessToken: string;
+  onCreated: () => Promise<void> | void;
+}) {
+  const today = todayLocal();
+  const [petId, setPetId] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('09:00');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => {
+    setPetId(data.pets.length === 1 ? data.pets[0].id : '');
+    setDate('');
+    setTime('09:00');
+    setReason('');
+  };
+
+  const handleOpenChange = (o: boolean) => {
+    if (o) reset();
+    if (!saving) onOpenChange(o);
+  };
+
+  // Reset when opened programmatically
+  React.useEffect(() => {
+    if (open) reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!petId) return toast.error('Please choose a pet');
+    if (!date || date < today) return toast.error('Please choose today or a future date');
+    if (!/^\d{2}:\d{2}$/.test(time)) return toast.error('Please choose a time');
+    if (!reason.trim()) return toast.error('Please tell us the reason for the visit');
+    setSaving(true);
+    try {
+      await api('/my/appointment-requests', accessToken, {
+        method: 'POST',
+        body: { pet_id: petId, date, time, reason: reason.trim() },
+      });
+      toast.success('Request sent! The clinic will confirm your appointment.');
+      onOpenChange(false);
+      await onCreated();
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not send your request');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Request an appointment</DialogTitle>
+          <DialogDescription>
+            Pick your preferred schedule. The clinic will review and confirm it.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="req-pet">Pet</Label>
+            <select
+              id="req-pet"
+              value={petId}
+              onChange={(e) => setPetId(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-input-background px-3 py-1 text-base md:text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              required
+            >
+              <option value="" disabled>Select a pet</option>
+              {data.pets.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}{p.type ? ` (${p.type})` : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="req-date">Date</Label>
+              <Input id="req-date" type="date" min={today} value={date} onChange={(e) => setDate(e.target.value)} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="req-time">Time</Label>
+              <Input id="req-time" type="time" step={900} value={time} onChange={(e) => setTime(e.target.value)} required />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="req-reason">Reason for visit</Label>
+            <Textarea
+              id="req-reason"
+              rows={3}
+              maxLength={500}
+              placeholder="e.g. Annual vaccine, check-up, skin itching..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              required
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={saving}>Cancel</Button>
+            <Button type="submit" disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              {saving && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+              Send request
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

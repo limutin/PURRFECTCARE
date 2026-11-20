@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { projectId, publicAnonKey, getFunctionUrl } from '../../utils/supabase/info';
+import { api, blobToBase64 } from '../../utils/api';
 import { formatDate, todayLocal } from '../../utils/formatDate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -71,6 +72,56 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
     return { pet, owner };
   };
   const hasSubject = !!getSubject();
+
+  // Keep a copy of every generated document in the patient's file (non-blocking)
+  const archiveDocument = async (out: Blob, fileName: string, docType: string, pet: any, owner: any) => {
+    try {
+      await api('/documents', accessToken, {
+        body: {
+          pet_id: walkInMode ? null : pet?.value?.id || null,
+          pet_name: pet?.value?.name || '',
+          owner_name: owner?.value?.name || '',
+          doc_type: docType,
+          file_name: fileName,
+          content_base64: await blobToBase64(out),
+        },
+      });
+      if (walkInMode) setLastWalkInDoc(docType);
+    } catch (e: any) {
+      toast.warning('Downloaded, but a copy could not be saved to the patient file: ' + e.message);
+    }
+  };
+
+  // Walk-in → registered client
+  const [lastWalkInDoc, setLastWalkInDoc] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
+  const registerWalkIn = async () => {
+    if (!walkIn.owner_name.trim() || !walkIn.pet_name.trim()) {
+      toast.error('Owner name and pet name are required');
+      return;
+    }
+    setRegistering(true);
+    try {
+      await api('/owners', accessToken, {
+        body: {
+          owner: { name: walkIn.owner_name.trim(), address: walkIn.owner_address, contact: walkIn.owner_contact, email: walkIn.owner_email },
+          pet: {
+            name: walkIn.pet_name.trim(), type: walkIn.type, breed: walkIn.breed, color: walkIn.color, sex: walkIn.sex,
+            birthday: walkIn.birthday || null, weight: walkIn.weight ? parseFloat(walkIn.weight) : null,
+          },
+        },
+      });
+      toast.success(`${walkIn.owner_name} and ${walkIn.pet_name} are now registered clients`);
+      setLastWalkInDoc(null);
+      setWalkInMode(false);
+      setWalkIn({ owner_name: '', owner_address: '', owner_contact: '', owner_email: '', pet_name: '', type: 'Dog', breed: '', color: '', sex: 'male', birthday: '', weight: '' });
+      fetchData();
+    } catch (e: any) {
+      toast.error('Could not register: ' + e.message);
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -449,6 +500,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Health Certificate (VHC)', pet, owner);
 
         recordIssuedVhc(vhcControlNo, walkInMode ? null : pet.value.id, pet.value.name, owner?.value.name || '');
         toast.success("VHC Document generated successfully!");
@@ -518,6 +570,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Consent for Euthanasia', pet, owner);
 
         toast.success("Euthanasia Consent form generated successfully!");
       } catch (err: any) {
@@ -581,6 +634,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Waiver of Release', pet, owner);
 
         toast.success("Waiver of Release form generated successfully!");
       } catch (err: any) {
@@ -654,6 +708,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Grooming Agreement', pet, owner);
 
         toast.success("Grooming Agreement generated successfully!");
       } catch (err: any) {
@@ -723,6 +778,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Consent for Confinement', pet, owner);
 
         toast.success("Confinement Consent form generated successfully!");
       } catch (err: any) {
@@ -798,6 +854,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Consent for Surgery', pet, owner);
 
         toast.success("Surgery Consent form generated successfully!");
       } catch (err: any) {
@@ -864,6 +921,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Promissory Note', pet, owner);
 
         toast.success('Promissory Note generated successfully!');
       } catch (err: any) {
@@ -920,6 +978,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Authorization Form', pet, owner);
 
         toast.success('Authorization form generated successfully!');
       } catch (err: any) {
@@ -983,6 +1042,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        archiveDocument(out, link.download, 'Refusal of Treatment', pet, owner);
 
         toast.success('Refusal form generated successfully!');
       } catch (err: any) {
@@ -1088,7 +1148,7 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
 
               {walkInMode && (
                 <div className="p-4 rounded-xl bg-background/50 border border-dashed border-primary/20 text-xs text-muted-foreground leading-relaxed">
-                  Walk-in details are used only for the generated document and are <b>not saved</b> as a client record.
+                  Walk-in details are used for the document only. Use <b>Register as client</b> if they will come back.
                   Owner name and pet name are required.
                 </div>
               )}
@@ -1148,6 +1208,17 @@ export function FormsManager({ accessToken }: FormsManagerProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+              <div className={`mt-5 rounded-xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 ${lastWalkInDoc ? 'border-teal-200 bg-teal-50' : 'bg-muted/40'}`}>
+                <div className="flex-1 text-sm">
+                  {lastWalkInDoc
+                    ? <><b className="text-teal-800">{lastWalkInDoc} generated.</b> <span className="text-muted-foreground">Will this client come back? Save them so their records start here.</span></>
+                    : <span className="text-muted-foreground">Coming back for future visits? Save this walk-in as a registered client.</span>}
+                </div>
+                <Button type="button" variant={lastWalkInDoc ? 'default' : 'outline'} onClick={registerWalkIn} disabled={registering || !walkIn.owner_name.trim() || !walkIn.pet_name.trim()}>
+                  {registering ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <User className="w-4 h-4 mr-2" />}
+                  Register as client
+                </Button>
               </div>
             </CardContent>
           </Card>

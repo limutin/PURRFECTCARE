@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
-import { Heart, Calendar, PawPrint, Banknote, User, LogOut } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Home, Calendar, PawPrint, Banknote, User, LogOut, RefreshCw, Phone, Link2Off } from 'lucide-react';
+import { api } from '../utils/api';
+import { OwnerHome } from './owner/OwnerHome';
 import { MyAppointments } from './owner/MyAppointments';
 import { MyPets } from './owner/MyPets';
 import { MyBills } from './owner/MyBills';
 import { MyProfile } from './owner/MyProfile';
+import { OwnerOverview, CLINIC_PHONE, Panel } from './owner/ownerShared';
+import { Skeleton } from './ui/skeleton';
+import { Button } from './ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 
 interface OwnerDashboardProps {
@@ -12,33 +17,120 @@ interface OwnerDashboardProps {
   onLogout: () => void;
 }
 
-export function OwnerDashboard({ user, accessToken, onLogout }: OwnerDashboardProps) {
-  const [activeTab, setActiveTab] = useState('appointments');
+type TabId = 'home' | 'pets' | 'appointments' | 'bills' | 'profile';
 
-  const menuItems = [
-    { id: 'appointments', label: 'My Appointments', icon: Calendar },
+const EMPTY: OwnerOverview = { owners: [], pets: [], appointments: [], bills: [], history: [], visits: [] };
+
+export function OwnerDashboard({ user, accessToken, onLogout }: OwnerDashboardProps) {
+  const [activeTab, setActiveTab] = useState<TabId>('home');
+  const [data, setData] = useState<OwnerOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [focusPetId, setFocusPetId] = useState<string | null>(null);
+
+  // Owner-scoped data only: the server matches the signed-in email to owners.email.
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const res = await api<Partial<OwnerOverview>>('/my/overview', accessToken);
+      setData({ ...EMPTY, ...res, owners: res.owners || [], pets: res.pets || [], appointments: res.appointments || [], bills: res.bills || [], history: res.history || [], visits: res.visits || [] });
+    } catch (e: any) {
+      setError(e?.message || 'Could not load your information.');
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const menuItems: { id: TabId; label: string; icon: any }[] = [
+    { id: 'home', label: 'Home', icon: Home },
     { id: 'pets', label: 'My Pets', icon: PawPrint },
-    { id: 'bills', label: 'My Bills', icon: Banknote },
+    { id: 'appointments', label: 'Appointments', icon: Calendar },
+    { id: 'bills', label: 'Bills', icon: Banknote },
     { id: 'profile', label: 'Profile', icon: User },
   ];
 
+  const goTo = (tab: string, petId?: string) => {
+    setFocusPetId(petId || null);
+    setActiveTab(tab as TabId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="space-y-4">
+          <Skeleton className="h-28 w-full rounded-2xl" />
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Skeleton className="h-32 rounded-2xl" />
+            <Skeleton className="h-32 rounded-2xl" />
+            <Skeleton className="h-32 rounded-2xl" />
+          </div>
+          <Skeleton className="h-48 w-full rounded-2xl" />
+        </div>
+      );
+    }
+
+    if (error || !data) {
+      return (
+        <Panel className="p-8 text-center max-w-lg mx-auto">
+          <p className="font-semibold text-gray-900">We couldn't load your information</p>
+          <p className="text-sm text-gray-500 mt-1">{error}</p>
+          <Button className="mt-4" variant="outline" onClick={() => { setLoading(true); load(); }}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Try again
+          </Button>
+        </Panel>
+      );
+    }
+
+    if (data.owners.length === 0 && activeTab !== 'profile') {
+      return (
+        <Panel className="p-8 sm:p-10 text-center max-w-xl mx-auto">
+          <div className="mx-auto mb-4 w-14 h-14 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center">
+            <Link2Off className="w-7 h-7" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Welcome to PurrfectCare!</h2>
+          <p className="text-gray-600 mt-2">
+            Your account isn't linked to a client record yet. Please ask the clinic to register you using the
+            same email address you signed in with:
+          </p>
+          <p className="mt-3 inline-block rounded-lg bg-gray-50 border border-gray-200 px-3 py-1.5 font-medium text-gray-800 break-all">
+            {user?.email}
+          </p>
+          <p className="text-sm text-gray-500 mt-4">
+            Once linked, your pets, appointments, vaccination records and bills will appear here.
+          </p>
+          <a
+            href={`tel:${CLINIC_PHONE.replace(/\s/g, '')}`}
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-sm font-semibold"
+          >
+            <Phone className="w-4 h-4" /> Call the clinic: {CLINIC_PHONE}
+          </a>
+        </Panel>
+      );
+    }
+
     switch (activeTab) {
-      case 'appointments':
-        return <MyAppointments accessToken={accessToken} />;
+      case 'home':
+        return <OwnerHome user={user} data={data} onNavigate={goTo} />;
       case 'pets':
-        return <MyPets accessToken={accessToken} />;
+        return <MyPets data={data} focusPetId={focusPetId} />;
+      case 'appointments':
+        return <MyAppointments data={data} accessToken={accessToken} onChanged={load} />;
       case 'bills':
-        return <MyBills accessToken={accessToken} />;
+        return <MyBills data={data} />;
       case 'profile':
-        return <MyProfile user={user} accessToken={accessToken} />;
+        return <MyProfile user={user} data={data} />;
       default:
-        return <MyAppointments accessToken={accessToken} />;
+        return null;
     }
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafb', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: '#faf8f5', fontFamily: "'Inter', system-ui, sans-serif" }}>
       {/* Top Bar */}
       <header className="vc-topbar">
         <div className="vc-topbar-inner">
@@ -54,15 +146,15 @@ export function OwnerDashboard({ user, accessToken, onLogout }: OwnerDashboardPr
             </div>
 
             <div className="vc-topbar-right">
-              <div className="vc-topbar-user">
-                <div className="vc-topbar-user-name">{user.name}</div>
-                <div className="vc-topbar-user-email">{user.email}</div>
+              <div className="vc-topbar-user hidden sm:block">
+                <div className="vc-topbar-user-name">{user?.name}</div>
+                <div className="vc-topbar-user-email">{user?.email}</div>
               </div>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <button className="vc-topbar-logout">
+                  <button className="vc-topbar-logout" aria-label="Sign out">
                     <LogOut size={16} />
-                    <span>Sign Out</span>
+                    <span className="hidden sm:inline">Sign Out</span>
                   </button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -81,13 +173,14 @@ export function OwnerDashboard({ user, accessToken, onLogout }: OwnerDashboardPr
             </div>
           </div>
 
-          {/* Tab Navigation */}
-          <nav className="vc-tab-nav">
+          {/* Tab Navigation (desktop/tablet) */}
+          <nav className="vc-tab-nav" aria-label="Owner portal sections">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 className={`vc-tab-btn ${activeTab === item.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => goTo(item.id)}
+                aria-current={activeTab === item.id ? 'page' : undefined}
               >
                 <item.icon size={16} />
                 <span>{item.label}</span>
@@ -98,18 +191,20 @@ export function OwnerDashboard({ user, accessToken, onLogout }: OwnerDashboardPr
       </header>
 
       {/* Main Content */}
-      <main className="vc-client-main vc-animate-in" key={activeTab}>
+      <main className="vc-owner-main vc-animate-in" key={activeTab}>
         {renderContent()}
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="vc-bottom-nav">
+      <nav className="vc-bottom-nav" aria-label="Owner portal sections">
         <div className="vc-bottom-nav-container">
           {menuItems.map((item) => (
             <button
               key={item.id}
               className={`vc-bottom-nav-item ${activeTab === item.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => goTo(item.id)}
+              aria-current={activeTab === item.id ? 'page' : undefined}
+              style={{ minWidth: 0 }}
             >
               <item.icon size={20} className="vc-nav-icon" />
               <span>{item.label}</span>

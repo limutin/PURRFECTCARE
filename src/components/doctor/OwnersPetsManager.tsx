@@ -10,14 +10,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
-import { Eye, Plus, Search, User, PawPrint, Trash2, Loader2, Edit2, ChevronDown } from 'lucide-react';
+import { Eye, Plus, Search, User, PawPrint, Trash2, Loader2, Edit2, ChevronDown, IdCard } from 'lucide-react';
 import { toast } from 'sonner';
+import { PetAvatar } from '../shared/PetAvatar';
+import { usePatientNav } from '../shared/PatientNav';
 
 interface OwnersPetsManagerProps {
   accessToken: string;
 }
 
 export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
+  const patientNav = usePatientNav();
   const [owners, setOwners] = useState<any[]>([]);
   const [pets, setPets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -397,9 +400,18 @@ export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
                   return (
                     <TableRow key={p.key} className="hover:bg-muted/5 transition-colors">
                       <TableCell>
-                        <div className="flex flex-col py-1">
-                          <span className="font-bold text-primary">{p.value.name}</span>
-                        </div>
+                        <button
+                          type="button"
+                          className="flex items-center gap-3 py-1 text-left group"
+                          onClick={() => patientNav?.openPatient(p.value.id || p.key)}
+                          title="Open patient profile"
+                        >
+                          <PetAvatar type={p.value.type} photoUrl={p.value.photo_url} name={p.value.name} size={36} />
+                          <span className="flex flex-col">
+                            <span className="font-bold text-foreground group-hover:text-primary group-hover:underline">{p.value.name}</span>
+                            {p.value.pet_uid && <span className="text-[10px] font-mono text-muted-foreground">{p.value.pet_uid}</span>}
+                          </span>
+                        </button>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm font-medium">
@@ -421,10 +433,18 @@ export function OwnersPetsManager({ accessToken }: OwnersPetsManagerProps) {
                         <span className="text-sm opacity-80">{owner?.value.address || 'N/A'}</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => startEdit(p)} className="hover:bg-primary/10 hover:text-primary transition-all">
-                          <User className="w-4 h-4 mr-2" />
-                          Patient File
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          {patientNav && (
+                            <Button variant="outline" size="sm" onClick={() => patientNav.openPatient(p.value.id || p.key)}>
+                              <IdCard className="w-4 h-4 mr-1.5" />
+                              Profile
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => startEdit(p)} className="hover:bg-primary/10 hover:text-primary transition-all">
+                            <Edit2 className="w-4 h-4 mr-1.5" />
+                            Edit
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

@@ -13,10 +13,12 @@ import { Skeleton } from '../ui/skeleton';
 import {
   Plus, FileText, Printer, Search, Eye, Trash2, Scale,
   Thermometer, ShieldCheck, Beaker, MessageSquare, Loader2,
-  Calendar as CalendarIcon, Pill, Trash, PawPrint, User, ArrowLeft, History, Pencil
+  Calendar as CalendarIcon, Pill, Trash, PawPrint, User, ArrowLeft, History, Pencil, Receipt, IdCard
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PetHistoryPanel } from '../shared/PetHistoryPanel';
+import { usePatientNav } from '../shared/PatientNav';
+import { api, peso } from '../../utils/api';
 
 interface DiagnosisManagerProps {
   accessToken: string;
@@ -35,6 +37,44 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
   const [saving, setSaving] = useState(false);
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [editingDiagnosis, setEditingDiagnosis] = useState<any>(null);
+  const patientNav = usePatientNav();
+
+  // Visit → bill
+  const [billingFor, setBillingFor] = useState<any>(null);
+  const [billFee, setBillFee] = useState('500');
+  const [billCreating, setBillCreating] = useState(false);
+  const [billedDiagnosisIds, setBilledDiagnosisIds] = useState<Set<string>>(new Set());
+
+  const openBillDialog = async (d: any) => {
+    setBillingFor(d);
+    try {
+      const [{ services }, { bills }] = await Promise.all([api('/services', accessToken), api('/billing', accessToken)]);
+      const consult = (services || []).find((x: any) => x.id === 'service:consultation' && x.active !== false);
+      if (consult) setBillFee(String(consult.price));
+      setBilledDiagnosisIds(new Set((bills || []).map((b: any) => b.value.diagnosis_id).filter(Boolean)));
+    } catch { /* keep defaults */ }
+  };
+
+  const createBillFromVisit = async () => {
+    if (!billingFor) return;
+    setBillCreating(true);
+    try {
+      const res = await api('/billing', accessToken, {
+        body: {
+          pet_id: billingFor.value.pet_id,
+          diagnosis_id: billingFor.key,
+          consultation_fee: parseFloat(billFee) || 0,
+          items: (billingFor.value.medications || []).filter((m: any) => m.inventory_id).map((m: any) => ({ inventory_id: m.inventory_id, quantity: m.quantity })),
+        },
+      });
+      toast.success(`Bill created — ${peso(res.total)}. Collect payment in Billing.`);
+      setBillingFor(null);
+    } catch (e: any) {
+      toast.error('Could not create bill: ' + e.message);
+    } finally {
+      setBillCreating(false);
+    }
+  };
 
 
   // Form states
@@ -708,6 +748,7 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
 
                 <div className="space-y-3 bg-muted/10 p-4 rounded-lg border border-muted/50">
                   <Label className="font-bold flex items-center gap-2"><Pill className="w-4 h-4 text-purple-600" /> Dispense Medications (Inventory)</Label>
+                  <p className="text-xs text-muted-foreground -mt-1">Quantities are taken out of stock automatically when you save, and put back if you edit or delete this record.</p>
                   <div className="flex gap-2 items-end">
                     <div className="flex-1 space-y-1">
                       <Label className="text-xs text-muted-foreground">Medicine</Label>
@@ -853,6 +894,7 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => setViewingDiagnosis(d)} className="h-8 w-8 hover:bg-primary/20 hover:text-primary"><Eye className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Create bill" onClick={() => openBillDialog(d)} className="h-8 w-8 hover:bg-teal-100 hover:text-teal-700"><Receipt className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" title="Edit" onClick={() => openEditDiagnosis(d)} className="h-8 w-8 hover:bg-amber-100 hover:text-amber-600"><Pencil className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" title="Print" onClick={() => handlePrint(d)} className="h-8 w-8 hover:bg-blue-100 hover:text-blue-600"><Printer className="w-4 h-4" /></Button>
                         <Button
@@ -987,6 +1029,9 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
                 <Button variant="outline" className="h-11 px-6 font-bold border-2" onClick={() => openEditDiagnosis(viewingDiagnosis)}>
                   <Pencil className="w-5 h-5 mr-2" /> Edit
                 </Button>
+                <Button className="h-11 px-6 font-bold" onClick={() => { const d = viewingDiagnosis; setViewingDiagnosis(null); openBillDialog(d); }}>
+                  <Receipt className="w-5 h-5 mr-2" /> Create bill
+                </Button>
                 <Button variant="outline" className="h-11 px-6 font-bold border-2" onClick={() => handlePrint(viewingDiagnosis)}>
                   <Printer className="w-5 h-5 mr-2" /> Print Record
                 </Button>
@@ -995,6 +1040,58 @@ export function DiagnosisManager({ accessToken }: DiagnosisManagerProps) {
           )}
         </DialogContent>
       </Dialog>
+      {/* Visit → bill */}
+      <Dialog open={!!billingFor} onOpenChange={(o: boolean) => !o && setBillingFor(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Receipt className="w-5 h-5 text-primary" /> Bill this visit</DialogTitle>
+            <DialogDescription>
+              {billingFor && `${pets.find(p => p.value.id === billingFor.value.pet_id || p.key === billingFor.value.pet_id)?.value.name || 'Patient'} · ${formatDate(billingFor.value.date)}`}
+            </DialogDescription>
+          </DialogHeader>
+          {billingFor && (
+            <div className="space-y-4">
+              {billedDiagnosisIds.has(billingFor.key) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm px-3 py-2">
+                  This visit already has a bill. Creating another will charge the client twice.
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label>Consultation fee (₱)</Label>
+                <Input type="number" min="0" step="0.01" value={billFee} onChange={e => setBillFee(e.target.value)} />
+              </div>
+              <div className="rounded-lg border divide-y">
+                {(billingFor.value.medications || []).length === 0 && <p className="text-sm text-muted-foreground px-3 py-2">No medicines dispensed in this visit.</p>}
+                {(billingFor.value.medications || []).map((m: any, i: number) => (
+                  <div key={i} className="flex justify-between text-sm px-3 py-2">
+                    <span>{m.name} × {m.quantity}</span>
+                    <span className="font-medium">{peso(Number(m.price || 0) * Number(m.quantity || 0))}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm px-3 py-2 font-bold bg-muted/40">
+                  <span>Total</span>
+                  <span>{peso((parseFloat(billFee) || 0) + (billingFor.value.medications || []).reduce((s: number, m: any) => s + Number(m.price || 0) * Number(m.quantity || 0), 0))}</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Medicines were already deducted from stock with this visit, so billing them won't deduct them again. Add services (grooming, lab tests…) from the Billing page.</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setBillingFor(null)} disabled={billCreating}>Cancel</Button>
+                <Button onClick={createBillFromVisit} disabled={billCreating}>
+                  {billCreating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Receipt className="w-4 h-4 mr-2" />} Create bill
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {selectedPetId && patientNav && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => patientNav.openPatient(selectedPetId)}>
+            <IdCard className="w-4 h-4 mr-1.5" /> Open full patient profile
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

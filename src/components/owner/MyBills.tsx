@@ -1,157 +1,111 @@
-import React, { useState, useEffect } from 'react';
-import { projectId } from '../../utils/supabase/info';
+import React, { useMemo, useState } from 'react';
+import { Receipt, ChevronDown, CheckCircle2, Wallet } from 'lucide-react';
+import { peso } from '../../utils/api';
 import { formatDate } from '../../utils/formatDate';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Skeleton } from '../ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Banknote } from 'lucide-react';
-import { toast } from 'sonner';
+import { OwnerOverview, OwnerBill, Panel, PageHeader, EmptyState, isPaid, ymd, CLINIC_PHONE } from './ownerShared';
 
 interface MyBillsProps {
-  accessToken: string;
+  data: OwnerOverview;
 }
 
-export function MyBills({ accessToken }: MyBillsProps) {
-  const [bills, setBills] = useState<any[]>([]);
-  const [pets, setPets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+export function MyBills({ data }: MyBillsProps) {
+  const petById = useMemo(() => new Map(data.pets.map((p) => [p.id, p])), [data.pets]);
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const byNewest = (a: OwnerBill, b: OwnerBill) => ymd(b.created_at).localeCompare(ymd(a.created_at));
+  const unpaid = data.bills.filter((b) => !isPaid(b)).sort(byNewest);
+  const paid = data.bills
+    .filter(isPaid)
+    .sort((a, b) => ymd(b.paid_at || b.created_at).localeCompare(ymd(a.paid_at || a.created_at)));
+  const balance = unpaid.reduce((s, b) => s + Number(b.total_cost || 0), 0);
 
-  const fetchData = async () => {
-    try {
-      const [billsRes, petsRes] = await Promise.all([
-        fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b53d76e4/billing`, {
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-        }),
-        fetch(`https://${projectId}.supabase.co/functions/v1/make-server-b53d76e4/pets`, {
-          headers: { 'Authorization': `Bearer ${accessToken}` },
-        }),
-      ]);
-
-      const billsData = await billsRes.json();
-      const petsData = await petsRes.json();
-
-      setBills(billsData.bills || []);
-      setPets(petsData.pets || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load bills');
-    } finally {
-      setLoading(false);
-    }
+  const billRow = (b: OwnerBill) => {
+    const pet = b.pet_id ? petById.get(b.pet_id) : undefined;
+    const open = openId === b.id;
+    const items = b.items || [];
+    const paidBill = isPaid(b);
+    return (
+      <li key={b.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <button className="w-full text-left p-3 sm:p-4 flex items-center gap-3" onClick={() => setOpenId(open ? null : b.id)} aria-expanded={open}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paidBill ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-500'}`}>
+            {paidBill ? <CheckCircle2 className="w-5 h-5" /> : <Receipt className="w-5 h-5" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-medium text-gray-900 text-sm truncate">
+              {pet?.name ? `${pet.name}` : 'Clinic bill'}
+              <span className="text-gray-400 font-normal"> · {items.length} item{items.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="text-xs text-gray-500">
+              {paidBill
+                ? `Paid ${b.paid_at ? formatDate(ymd(b.paid_at)) : ''}${b.payment_method ? ` via ${b.payment_method}` : ''}`
+                : `Billed ${b.created_at ? formatDate(ymd(b.created_at)) : ''}`}
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className={`font-semibold ${paidBill ? 'text-gray-900' : 'text-orange-600'}`}>{peso(b.total_cost)}</div>
+            <div className={`text-[11px] font-semibold uppercase ${paidBill ? 'text-emerald-600' : 'text-orange-500'}`}>{paidBill ? 'Paid' : (b.status || 'Unpaid')}</div>
+          </div>
+          <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <div className="border-t border-gray-100 bg-[#fcfbf9] px-3 sm:px-4 py-3">
+            {items.length === 0 ? (
+              <p className="text-sm text-gray-500">No item details.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100 text-sm">
+                {items.map((it, i) => (
+                  <li key={i} className="flex items-start justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <div className="text-gray-800 break-words">{it.name}</div>
+                      <div className="text-xs text-gray-500">{it.quantity} × {peso(it.unit_price)}</div>
+                    </div>
+                    <div className="font-medium text-gray-900 shrink-0">{peso(it.subtotal)}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex justify-between border-t border-gray-200 mt-1 pt-2 text-sm font-semibold">
+              <span>Total</span>
+              <span>{peso(b.total_cost)}</span>
+            </div>
+          </div>
+        )}
+      </li>
+    );
   };
 
-  const totalUnpaid = bills
-    .filter((bill) => bill.value.status === 'unpaid')
-    .reduce((sum, bill) => sum + bill.value.total_cost, 0);
-
-  const totalPaid = bills
-    .filter((bill) => bill.value.status === 'paid')
-    .reduce((sum, bill) => sum + bill.value.total_cost, 0);
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">My Bills</h2>
-        <p className="text-muted-foreground">View your payment history and outstanding bills</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Outstanding Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">₱{totalUnpaid.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {bills.filter((b) => b.value.status === 'unpaid').length} unpaid bill(s)
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Paid
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">₱{totalPaid.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {bills.filter((b) => b.value.status === 'paid').length} paid bill(s)
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>All Bills</CardTitle>
-          <CardDescription>Your billing history</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 py-3">
-                  <Skeleton className="h-4 w-[110px]" />
-                  <Skeleton className="h-4 w-[90px]" />
-                  <Skeleton className="h-4 w-[100px]" />
-                  <Skeleton className="h-4 w-[80px]" />
-                  <Skeleton className="h-5 w-[70px] rounded-full" />
-                </div>
-              ))}
+    <div>
+      <PageHeader title="Bills" subtitle="Your clinic bills and payment history" />
+      <div className="space-y-5">
+        <Panel className="p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <h3 className="font-semibold text-gray-900">Unpaid</h3>
+            <div className={`flex items-center gap-2 rounded-xl px-3 py-2 ${balance > 0 ? 'bg-orange-50 text-orange-700' : 'bg-emerald-50 text-emerald-700'}`}>
+              <Wallet className="w-4 h-4" />
+              <span className="text-sm">Balance due:</span>
+              <span className="font-bold">{peso(balance)}</span>
             </div>
-          ) : bills.length === 0 ? (
-            <div className="text-center py-12">
-              <Banknote className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No bills yet</p>
-            </div>
+          </div>
+          {unpaid.length === 0 ? (
+            <EmptyState icon={CheckCircle2} title="You're all paid up" text="Thank you! There are no outstanding bills." />
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Receipt #</TableHead>
-                    <TableHead>Pet</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bills
-                    .sort((a, b) => new Date(b.value.created_at).getTime() - new Date(a.value.created_at).getTime())
-                    .map((bill) => {
-                      const pet = pets.find((p) => p.value.id === bill.value.pet_id);
-                      return (
-                        <TableRow key={bill.key}>
-                          <TableCell>{formatDate(bill.value.created_at)}</TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {bill.value.id.substring(0, 12).toUpperCase()}
-                          </TableCell>
-                          <TableCell className="font-medium">{pet?.value.name || 'Unknown'}</TableCell>
-                          <TableCell className="font-semibold">₱{bill.value.total_cost.toFixed(2)}</TableCell>
-                          <TableCell>
-                            <Badge variant={bill.value.status === 'paid' ? 'default' : 'secondary'}>
-                              {bill.value.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                </TableBody>
-              </Table>
-            </div>
+            <>
+              <ul className="space-y-2">{unpaid.map(billRow)}</ul>
+              <p className="text-xs text-gray-500 mt-3">Payments are settled at the clinic. Questions about a bill? Call {CLINIC_PHONE}.</p>
+            </>
           )}
-        </CardContent>
-      </Card>
+        </Panel>
+
+        <Panel className="p-4 sm:p-5">
+          <h3 className="font-semibold text-gray-900 mb-3">Payment history</h3>
+          {paid.length === 0 ? (
+            <EmptyState icon={Receipt} title="No payments yet" />
+          ) : (
+            <ul className="space-y-2">{paid.map(billRow)}</ul>
+          )}
+        </Panel>
+      </div>
     </div>
   );
 }

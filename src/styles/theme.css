@@ -1,44 +1,63 @@
 /* =====================================================================
-   PURRFECTCARE — Design system (loaded after dashboard.css)
-   A calm, clinical look: neutral surfaces, one brand green, consistent
-   radii/spacing, no decorative gradients. Overrides earlier rules.
+   PURRFECTCARE — Veterinary clinic design system (loaded last)
+   Clinical teal + warm neutrals, rounded friendly headings (Nunito),
+   paw-print accents, species-colored patient avatars.
    ===================================================================== */
 
 :root {
-  --pc-brand-900: #0b3b2e;
-  --pc-brand-800: #0f4a3a;
-  --pc-brand-700: #13614b;
-  --pc-brand-600: #15803d;
-  --pc-brand-500: #16a34a;
-  --pc-brand-100: #dcfce7;
-  --pc-brand-50: #f0fdf4;
+  --pc-brand-950: #0b2e2c;
+  --pc-brand-900: #0f3b38;
+  --pc-brand-800: #115e59;
+  --pc-brand-700: #0f766e;
+  --pc-brand-600: #0d9488;
+  --pc-brand-500: #14b8a6;
+  --pc-brand-100: #ccfbf1;
+  --pc-brand-50: #f0fdfa;
 
-  --pc-bg: #f5f7f8;
+  --pc-warm: #f59e0b;
+  --pc-warm-50: #fffbeb;
+  --pc-coral: #f97362;
+
+  --pc-bg: #f7f5f1;
   --pc-surface: #ffffff;
-  --pc-border: #e3e7eb;
-  --pc-border-strong: #cfd5db;
-  --pc-text: #0f172a;
-  --pc-text-2: #475569;
-  --pc-text-3: #94a3b8;
+  --pc-border: #e8e4dc;
+  --pc-border-strong: #d6d0c4;
+  --pc-text: #1c2b2a;
+  --pc-text-2: #57655f;
+  --pc-text-3: #9aa6a1;
 
-  --pc-radius-sm: 6px;
-  --pc-radius: 8px;
-  --pc-radius-lg: 12px;
-  --pc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --pc-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --pc-shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.12);
-  --pc-focus: 0 0 0 3px rgba(22, 163, 74, 0.18);
+  --pc-radius-sm: 8px;
+  --pc-radius: 10px;
+  --pc-radius-lg: 14px;
+  --pc-shadow-sm: 0 1px 2px rgba(28, 43, 42, 0.05);
+  --pc-shadow: 0 2px 6px rgba(28, 43, 42, 0.06), 0 1px 2px rgba(28, 43, 42, 0.04);
+  --pc-shadow-lg: 0 16px 40px rgba(28, 43, 42, 0.14);
+  --pc-focus: 0 0 0 3px rgba(13, 148, 136, 0.2);
+
+  --pc-font-display: 'Nunito', 'Inter', system-ui, sans-serif;
 
   /* Align shadcn tokens with the palette */
-  --primary: var(--pc-brand-600);
-  --ring: var(--pc-brand-500);
+  --primary: var(--pc-brand-700);
+  --primary-foreground: #ffffff;
+  --ring: var(--pc-brand-600);
   --accent: var(--pc-brand-50);
-  --accent-foreground: var(--pc-brand-700);
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --accent-foreground: var(--pc-brand-800);
+  --secondary: #f3efe7;
+  --secondary-foreground: var(--pc-text);
+  --muted: #f3f0ea;
+  --muted-foreground: #6b7872;
   --border: var(--pc-border);
   --input-background: #ffffff;
-  --radius: 0.5rem;
+  --radius: 0.625rem;
+}
+
+/* Friendly, rounded display type for headings and numbers */
+h1, h2, h3,
+[data-slot="card-title"],
+[data-slot="dialog-title"],
+.vc-sidebar-brand-name,
+.vc-display {
+  font-family: var(--pc-font-display);
 }
 
 html, body {
@@ -122,7 +141,7 @@ body {
   left: -0.75rem;
   width: 3px;
   height: 70%;
-  background: #4ade80;
+  background: #5eead4;
   border-radius: 0 3px 3px 0;
 }
 
@@ -133,7 +152,7 @@ body {
 
 .vc-nav-item:focus-visible,
 .vc-logout-btn:focus-visible {
-  outline: 2px solid #4ade80;
+  outline: 2px solid #5eead4;
   outline-offset: 1px;
 }
 
@@ -203,8 +222,8 @@ body {
 }
 
 /* Pages wrap themselves in p-6; the shell already pads, so remove the double padding */
-.vc-main-content > .p-6 {
-  padding: 0;
+.vc-main-content > div {
+  padding: 0 !important;
 }
 
 /* Page titles inside content: consistent, restrained */
@@ -423,16 +442,16 @@ label[data-slot="label"] {
   }
 
   /* Page header rows (title + actions) wrap instead of overflowing */
-  .vc-main-content > .p-6 > .flex.justify-between:first-child {
+  .vc-main-content > div > .flex.justify-between:first-child {
     flex-wrap: wrap;
     gap: 0.75rem;
   }
 
-  .vc-main-content > .p-6 > .flex.justify-between:first-child > :last-child {
+  .vc-main-content > div > .flex.justify-between:first-child > :last-child {
     width: 100%;
   }
 
-  .vc-main-content > .p-6 > .flex.justify-between:first-child > :last-child [data-slot="button"] {
+  .vc-main-content > div > .flex.justify-between:first-child > :last-child [data-slot="button"] {
     flex: 1 1 auto;
   }
 
@@ -476,4 +495,89 @@ label[data-slot="label"] {
 
 @media (prefers-reduced-motion: reduce) {
   .vc-animate-in { animation: none; }
+}
+
+/* =====================================================================
+   Veterinary accents
+   ===================================================================== */
+
+/* Sidebar: deep teal with a faint paw-print pattern */
+.vc-sidebar {
+  background-color: var(--pc-brand-900);
+  background-image:
+    radial-gradient(120% 60% at 0% 0%, rgba(20, 184, 166, 0.16) 0%, rgba(20, 184, 166, 0) 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Cg fill='%23ffffff' fill-opacity='0.035'%3E%3Cellipse cx='30' cy='40' rx='9' ry='7.5'/%3E%3Ccircle cx='19' cy='29' r='3.6'/%3E%3Ccircle cx='26' cy='24' r='3.6'/%3E%3Ccircle cx='34' cy='24' r='3.6'/%3E%3Ccircle cx='41' cy='29' r='3.6'/%3E%3Cellipse cx='72' cy='82' rx='7' ry='6' transform='rotate(-20 72 82)'/%3E%3Ccircle cx='63' cy='73' r='2.8'/%3E%3Ccircle cx='68' cy='69' r='2.8'/%3E%3Ccircle cx='75' cy='69' r='2.8'/%3E%3Ccircle cx='80' cy='73' r='2.8'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: no-repeat, repeat;
+}
+
+.vc-sidebar-section-label { color: rgba(204, 251, 241, 0.45); }
+.vc-nav-item { color: rgba(236, 253, 245, 0.74); }
+.vc-nav-item.active { background: rgba(94, 234, 212, 0.14); color: #fff; }
+.vc-nav-item.active .vc-nav-icon { color: #5eead4; }
+.vc-sidebar-avatar { background: var(--pc-brand-700); }
+
+/* Clinic info card at the bottom of the sidebar */
+.vc-sidebar-clinic {
+  margin: 0.5rem 0.75rem 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--pc-radius);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: rgba(236, 253, 245, 0.8);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+.vc-sidebar-clinic strong { color: #fff; font-weight: 600; display: block; margin-bottom: 2px; }
+
+/* Header search */
+.vc-header-search { position: relative; width: min(380px, 40vw); }
+.vc-header-search input {
+  width: 100%;
+  height: 38px;
+  padding: 0 0.75rem 0 2.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--pc-border);
+  background: #f8f6f2;
+  font-size: 0.85rem;
+  color: var(--pc-text);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.vc-header-search input:focus { background: #fff; border-color: var(--pc-brand-600); box-shadow: var(--pc-focus); }
+.vc-header-search > svg { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--pc-text-3); width: 16px; height: 16px; }
+.vc-header-search-results {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
+  background: #fff; border: 1px solid var(--pc-border); border-radius: var(--pc-radius);
+  box-shadow: var(--pc-shadow-lg); max-height: 360px; overflow-y: auto; padding: 4px;
+}
+.vc-header-search-item {
+  display: flex; align-items: center; gap: 0.65rem; width: 100%; text-align: left;
+  padding: 0.5rem 0.6rem; border-radius: 8px; border: 0; background: transparent; cursor: pointer;
+}
+.vc-header-search-item:hover, .vc-header-search-item[data-active="true"] { background: var(--pc-brand-50); }
+
+/* Status pills */
+.vc-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 9px; border-radius: 9999px;
+  font-size: 0.72rem; font-weight: 600; line-height: 1.5; white-space: nowrap;
+}
+
+/* Section heading with a small paw */
+.vc-section-title { display: flex; align-items: center; gap: 0.5rem; font-family: var(--pc-font-display); font-weight: 700; font-size: 1.05rem; color: var(--pc-text); }
+
+/* Welcome banner on the dashboard */
+.vc-welcome {
+  position: relative; overflow: hidden;
+  border-radius: var(--pc-radius-lg);
+  background: linear-gradient(120deg, var(--pc-brand-800) 0%, var(--pc-brand-700) 55%, var(--pc-brand-600) 100%);
+  color: #fff; padding: 1.4rem 1.6rem;
+}
+.vc-welcome::after {
+  content: ''; position: absolute; right: -10px; bottom: -18px; width: 180px; height: 180px; opacity: .12;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='%23ffffff'%3E%3Cellipse cx='32' cy='42' rx='14' ry='12'/%3E%3Ccircle cx='15' cy='26' r='6'/%3E%3Ccircle cx='26' cy='17' r='6'/%3E%3Ccircle cx='38' cy='17' r='6'/%3E%3Ccircle cx='49' cy='26' r='6'/%3E%3C/g%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+@media (max-width: 768px) {
+  .vc-header-search { display: none; }
 }
