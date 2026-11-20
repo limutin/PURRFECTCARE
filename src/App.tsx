@@ -156,7 +156,7 @@ export default function App() {
         gap: '1rem',
       }}>
         <div style={{ fontSize: '1.125rem', fontWeight: 600, color: '#374151' }}>
-          Unknown user role
+          This account doesn't have access to the clinic system. Please contact the clinic.
         </div>
         <button
           onClick={handleLogout}

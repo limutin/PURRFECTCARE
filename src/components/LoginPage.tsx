@@ -20,7 +20,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
-  const [signupRole, setSignupRole] = useState('doctor');
   const [loading, setLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
@@ -86,7 +85,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             email: signupEmail,
             password: signupPassword,
             name: signupName,
-            role: signupRole,
           }),
         }
       );
@@ -99,11 +97,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         return;
       }
 
-      toast.success('Account created! Please login.');
+      toast.success('Account created! You can now sign in.');
       setSignupEmail('');
       setSignupPassword('');
       setSignupName('');
-      setSignupRole('doctor');
       setActiveTab('login');
     } catch (error) {
       console.error('Signup error:', error);
@@ -742,7 +739,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <>
               <div className="form-header">
                 <h2>Create account</h2>
-                <p>Join PURRFECTCARE and get started</p>
+                <p>For pet owners: see your pet's vaccination card, bills and request appointments. Use the same email you gave the clinic. Clinic staff accounts are created by the doctor.</p>
               </div>
 
               <form onSubmit={handleSignup}>
@@ -782,6 +779,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                       placeholder="Min. 6 characters"
                       value={signupPassword}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSignupPassword(e.target.value)}
+                      minLength={8}
                       required
                       style={{ paddingRight: '3rem' }}
                     />
@@ -794,19 +792,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                       {showSignupPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="signup-role" className="form-label">Role</label>
-                  <select
-                    id="signup-role"
-                    className="form-select"
-                    value={signupRole}
-                    onChange={(e) => setSignupRole(e.target.value)}
-                  >
-                    <option value="doctor">Doctor</option>
-                    <option value="secretary">Secretary</option>
-                  </select>
                 </div>
 
                 <button

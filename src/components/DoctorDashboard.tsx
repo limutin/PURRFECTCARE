@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  LayoutDashboard, PawPrint, CalendarHeart, Stethoscope, Pill, Receipt, ClipboardList, BarChart3, FileText,
+  LayoutDashboard, PawPrint, CalendarHeart, Stethoscope, Pill, Receipt, ClipboardList, BarChart3, FileText, UserCog,
 } from 'lucide-react';
 import { DashboardOverview } from './doctor/DashboardOverview';
 import { OwnersPetsManager } from './doctor/OwnersPetsManager';
@@ -11,6 +11,7 @@ import { BillingManager } from './doctor/BillingManager';
 import { ServicesManager } from './doctor/ServicesManager';
 import { DailyReport } from './doctor/DailyReport';
 import { FormsManager } from './doctor/FormsManager';
+import { StaffManager } from './doctor/StaffManager';
 import { PatientProfile } from './shared/PatientProfile';
 import { ClinicShell, MenuSection } from './shared/ClinicShell';
 
@@ -38,6 +39,7 @@ const SECTIONS: MenuSection[] = [
       { id: 'services', label: 'Services & Prices', icon: ClipboardList },
       { id: 'report', label: 'Daily Report', icon: BarChart3 },
       { id: 'forms', label: 'Forms', icon: FileText },
+      { id: 'staff', label: 'Staff Accounts', icon: UserCog },
     ],
   },
 ];
@@ -67,6 +69,7 @@ export function DoctorDashboard({ user, accessToken, onLogout }: DoctorDashboard
       case 'services': return <ServicesManager accessToken={accessToken} />;
       case 'report': return <DailyReport accessToken={accessToken} />;
       case 'forms': return <FormsManager accessToken={accessToken} />;
+      case 'staff': return <StaffManager accessToken={accessToken} currentUserId={user?.id} />;
       case 'patient':
         return patientId
           ? <PatientProfile accessToken={accessToken} petId={patientId} onBack={() => setActiveTab(previousTab)} />
